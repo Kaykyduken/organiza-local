@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dados locais do aplicativo (nunca versionar regras/histórico pessoais)
+dados/
+*.log
+.env
+
+# Vercel
+.vercel/
