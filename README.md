@@ -12,6 +12,9 @@ Orientador: Prof. Me. Deivison S. Takatu.
 | Sistemas | Windows 10/11 e Linux |
 | Linguagem | Python 3.10+ (somente biblioteca padrão, funciona offline) |
 
+
+![Painel do OrganizaLocal](docs/prints/d08_resultado.jpg)
+
 ---
 
 ## 1. Objetivo e problema
@@ -188,7 +191,21 @@ Cada teste roda numa pasta temporária isolada.
 
 Rastreabilidade completa em [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
 
-## 9. Estrutura do repositório
+## 9. Prints e documento do projeto
+
+O documento completo do projeto (estrutura de mini TCC, com prints de cada etapa) está em [`docs/OrganizaLocal_Documento_Projeto.docx`](docs/OrganizaLocal_Documento_Projeto.docx). As capturas de tela ficam em [`docs/prints/`](docs/prints):
+
+| Etapa | Print |
+|---|---|
+| Instalação no Linux | [`t01_instalacao.jpg`](docs/prints/t01_instalacao.jpg) |
+| Regras com prioridade ▲/▼ | [`d06_regras_ativas.jpg`](docs/prints/d06_regras_ativas.jpg) |
+| Simulação (não move nada) | [`d07_simulacao.jpg`](docs/prints/d07_simulacao.jpg) |
+| Resultado e fila de revisão | [`d08_resultado.jpg`](docs/prints/d08_resultado.jpg) |
+| Backups com 5 versões | [`d10_backups_versoes.jpg`](docs/prints/d10_backups_versoes.jpg) |
+| Aba Sistema (conceitos de SO) | [`d15_sistema.jpg`](docs/prints/d15_sistema.jpg) |
+| Testes automatizados | [`t05_testes.jpg`](docs/prints/t05_testes.jpg) |
+
+## 10. Estrutura do repositório
 
 ```text
 organiza-local/
@@ -207,12 +224,12 @@ organiza-local/
 ├── web/                 # site publicado na Vercel (HTML/CSS/JS)
 ├── scripts/             # instalação e automação (Bash, PowerShell, Batch)
 ├── tests/               # testes automatizados
-├── docs/                # conceitos de SO e prints
+├── docs/                # conceitos de SO, prints e documento do projeto
 ├── vercel.json
 └── README.md
 ```
 
-## 10. Limitações conhecidas
+## 11. Limitações conhecidas
 
 - O programa precisa estar em execução para organizar sozinho. O instalador o coloca no início automático.
 - A organização é por varredura periódica, e não por eventos instantâneos do sistema de arquivos.
@@ -224,6 +241,6 @@ organiza-local/
 - Não há criptografia dos backups.
 - Foi testado em Linux (Debian/Ubuntu). O Windows foi validado pelo código e pelos scripts, e precisa de teste na máquina de apresentação.
 
-## 11. Possíveis melhorias
+## 12. Possíveis melhorias
 
 Monitoramento por eventos (inotify/ReadDirectoryChangesW), backups incrementais e criptografados, ícone na bandeja do sistema, empacotamento como executável (PyInstaller) e sincronização de regras entre computadores.
