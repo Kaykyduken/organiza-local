@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!--
+  OrganizaLocal — interface web.
+  Este mesmo HTML é publicado na Vercel e também servido pelo programa local
+  (http://127.0.0.1:8765). Ele não processa arquivos: só conversa com a API do
+  programa que roda no computador do usuário.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OrganizaLocal: organiza automaticamente seus downloads e faz backups versionados, tudo no seu computador.">
+  <title>OrganizaLocal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M8 11h7l2 2h7v9H8z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="claro">
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M6 10h8l2.5 2.5H26V24H6z" fill="currentColor"/></svg>
+        </div>
+        <div><strong>OrganizaLocal</strong><small>Organização automática e backups</small></div>
+      </div>
+      <button id="menuToggle" class="ghost only-mobile" aria-label="Abrir menu">☰</button>
+      <div id="connection" class="pill">Conectando…</div>
+    </header>
+    <div class="layout">
+      <nav id="nav" aria-label="Seções">
+        <button data-tab="painel" class="active"><span>▦</span>Painel</button>
+        <button data-tab="regras"><span>⚙</span>Regras</button>
+        <button data-tab="organizacao"><span>⇄</span>Organização</button>
+        <button data-tab="backups"><span>▣</span>Backups</button>
+        <button data-tab="historico"><span>◷</span>Histórico</button>
+        <button data-tab="ferramentas"><span>✦</span>Ferramentas</button>
+        <button data-tab="seguranca"><span>⛨</span>Segurança</button>
+        <button data-tab="sistema"><span>⌁</span>Sistema</button>
+        <button data-tab="config"><span>☷</span>Configurações</button>
+        <div class="navfoot" id="navfoot">Arquivos processados só no seu computador.</div>
+      </nav>
+      <main id="main"><section class="card"><h2>Carregando…</h2></section></main>
+    </div>
+  </div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
