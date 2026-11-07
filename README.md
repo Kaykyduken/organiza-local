@@ -33,7 +33,7 @@ O painel de controle é um **site publicado na Vercel**. Ao clicar no atalho do 
 
 | Integrante | Responsabilidade principal |
 |---|---|
-| Kayky Gabriel Silvano Tomé | Arquitetura, motor de regras e integração com a Vercel |
+| Kayky Gabriel Silvano Tomé | revisão e otimização do codigo, versão online, criação do site e integração com a Vercel |
 | `<Integrante 2>` | `<ex.: backups e restauração>` |
 | `<Integrante 3>` | `<ex.: scripts de instalação e automação>` |
 | `<Integrante 4>` | `<ex.: interface web e testes>` |
