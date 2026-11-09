@@ -145,6 +145,52 @@ class TestSimulacaoEExecucao(TempEnv):
         self.assertEqual(len(list((self.home / "PDFs").glob("20*_nota.pdf"))), 1)
 
 
+class TestInventarioExtensoes(TempEnv):
+    """Lista de extensões da pasta monitorada usada nos checkboxes do formulário de regra."""
+
+    def test_lista_extensoes_com_contagem_categoria_e_exemplos(self):
+        make_file(self.downloads / "a.PDF", "x" * 10)
+        make_file(self.downloads / "b.pdf", "y" * 5)
+        make_file(self.downloads / "foto.jpg")
+        make_file(self.downloads / "backup.tar.gz")
+        make_file(self.downloads / "LEIAME")                       # sem extensão
+        inv = self.org.extension_inventory()
+        by_ext = {i["ext"]: i for i in inv["extensions"]}
+        self.assertEqual(list(by_ext)[0], ".pdf")                  # mais frequente primeiro
+        self.assertEqual(by_ext[".pdf"]["count"], 2)               # sem diferenciar maiúsculas
+        self.assertEqual(by_ext[".pdf"]["bytes"], 15)
+        self.assertEqual(by_ext[".pdf"]["category"], "Documentos")
+        self.assertIn(".tar.gz", by_ext)                           # extensão dupla
+        self.assertEqual(inv["without_extension"], 1)
+        self.assertEqual(inv["total_files"], 5)
+        self.assertLessEqual(len(by_ext[".pdf"]["examples"]), 3)
+
+    def test_indica_regras_ativas_que_ja_usam_a_extensao(self):
+        make_file(self.downloads / "a.pdf")
+        r = self.rule("PDF", {"extensions": [".pdf"]}, "PDFs", priority=7)
+        inv = self.org.extension_inventory()
+        self.assertEqual(inv["extensions"][0]["used_by"][0]["name"], "PDF")
+        self.org.set_enabled(r["id"], False)                       # desativada não conta
+        self.assertEqual(self.org.extension_inventory()["extensions"][0]["used_by"], [])
+
+    def test_ignora_downloads_em_andamento(self):
+        make_file(self.downloads / "video.mp4.crdownload")
+        make_file(self.downloads / "jogo.part")
+        inv = self.org.extension_inventory()
+        self.assertEqual(inv["extensions"], [])
+        self.assertEqual(inv["temporary"], 2)
+
+    def test_nao_lista_pasta_de_dados_nem_excluidos(self):
+        make_file(self.downloads / "a.iso")
+        self.app.store.config["exclusions"]["extensions"] = [".iso"]
+        self.assertEqual(self.org.extension_inventory()["extensions"], [])
+
+    def test_acao_da_api(self):
+        make_file(self.downloads / "a.docx")
+        result = self.app.dispatch("extensions_scan", {})
+        self.assertEqual(result["extensions"][0]["ext"], ".docx")
+
+
 class TestFerramentas(TempEnv):
     def test_duplicados_e_remocao_segura(self):
         a = make_file(self.downloads / "a.txt", "igual")

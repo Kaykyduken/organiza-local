@@ -298,6 +298,8 @@ class App:
             "rules_validate": ("analyze", lambda p: o.validate_all()),
             "duplicates": ("analyze", lambda p: o.duplicates(p.get("paths") or None)),
             "suggestions": ("analyze", lambda p: o.suggestions(p.get("paths") or None)),
+            "extensions_scan": ("analyze", lambda p: o.extension_inventory(p.get("paths") or None,
+                                                                         p.get("recursive"))),
             "integrity": ("analyze", lambda p: o.integrity(p["path"], p.get("expected", ""))),
             "archive_inspect": ("analyze", lambda p: archives.inspect(o, p["path"])),
             "sandbox_run": ("analyze", lambda p: o.sandbox_run(p.get("paths") or None)),

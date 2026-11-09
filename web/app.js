@@ -303,7 +303,12 @@ function ruleFormHtml(r) {
     <div class="form">
       <label class="two">Nome da regra<input name="name" required value="${esc(r.name || '')}" placeholder="ex.: Trabalhos da faculdade"></label>
       <label>Prioridade (0 a 10)<input name="priority" type="number" min="0" max="10" value="${r.priority ?? 5}"></label>
-      <label class="two">Extensões (HU01) — separadas por vírgula<input name="extensions" value="${esc((c.extensions || []).join(', '))}" placeholder=".pdf, .docx, .xlsx"></label>
+      <div class="full extbox">
+        <div class="spread"><span><b>Extensões (HU01)</b> <span class="small muted">— marque as extensões encontradas na pasta monitorada</span></span>
+          <div class="row"><input id="extFilter" type="search" placeholder="Filtrar (ex.: pdf)" aria-label="Filtrar extensões"><button type="button" data-act="ext-scan" title="Ler a pasta monitorada de novo">↻ Ler a pasta de novo</button></div></div>
+        <div id="extPicker">${extPickerHtml(UI.extInv, new Set(c.extensions || []), r.id)}</div>
+      </div>
+      <label class="two">Outras extensões (que ainda não estão na pasta), separadas por vírgula<input name="extensions_extra" placeholder=".iso, .torrent"></label>
       <label>Palavras no nome (HU02)<input name="keywords" value="${esc((c.keywords || []).join(', '))}" placeholder="faculdade, fatec"></label>
       <label class="two">Pasta de destino (caminho completo)<input name="destination" required value="${esc(r.destination || '')}" placeholder="${S.app.os === 'nt' ? 'C:\\Users\\voce\\Documents\\Faculdade' : '/home/voce/Documentos/Faculdade'}"></label>
       <label>Projeto (opcional)<select name="project_id"><option value="">—</option>${(S.config.projects || []).map(p => `<option value="${esc(p.id)}" ${p.id === r.project_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
@@ -332,6 +337,51 @@ function ruleFormHtml(r) {
     <hr><div class="row"><button class="primary" type="submit">Salvar regra</button><button type="button" data-act="rule-cancel">Cancelar</button>
     <span class="small muted">As condições preenchidas precisam valer todas ao mesmo tempo (E).</span></div></form>`;
 }
+/* Seletor de extensões: lista, em checkboxes agrupados por categoria, as extensões que
+   existem hoje nas pastas monitoradas (ação extensions_scan do programa local). */
+function extPickerHtml(inv, selected, ruleId) {
+  if (!inv) return '<div class="empty small">Lendo as extensões da pasta monitorada…</div>';
+  const sel = new Set([...selected].map(e => String(e).toLowerCase()));
+  const order = [...Object.keys(S.categories_builtin), ...Object.keys(S.config.categories || {}), 'Outros'];
+  const groups = {};
+  for (const item of inv.extensions) (groups[item.category] ||= []).push(item);
+  const missing = [...sel].filter(e => !inv.extensions.some(i => i.ext === e));
+  const chip = (ext, count, item) => {
+    const others = (inv.used_by[ext] || []).filter(u => u.id !== ruleId);
+    const tip = item ? `${count} arquivo(s), ${bytes(item.bytes)} — ex.: ${item.examples.join(', ')}` : 'Nenhum arquivo com essa extensão na pasta agora';
+    return `<label class="extchip ${sel.has(ext) ? 'on' : ''}" data-ext="${esc(ext)}" title="${esc(tip)}"><input type="checkbox" name="ext" value="${esc(ext)}" ${sel.has(ext) ? 'checked' : ''}>
+      <span class="mono">${esc(ext)}</span>${count !== null ? `<small>${count}</small>` : ''}${others.length ? `<span class="badge warn" title="Já usada por: ${esc(others.map(o => `${o.name} (prioridade ${o.priority})`).join(', '))}">em ${esc(others[0].name)}${others.length > 1 ? ' +' + (others.length - 1) : ''}</span>` : ''}</label>`;
+  };
+  const cats = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+  const body = cats.map(cat => `<div class="extgroup" data-cat="${esc(cat)}"><div class="extgroup-head"><b>${esc(cat)}</b>
+      <button type="button" class="linkbtn" data-act="ext-group" data-cat="${esc(cat)}">marcar/desmarcar todas</button></div>
+      <div class="extchips">${groups[cat].map(i => chip(i.ext, i.count, i)).join('')}</div></div>`).join('');
+  const extra = missing.length ? `<div class="extgroup"><div class="extgroup-head"><b>Já na regra</b> <span class="small muted">(sem arquivos na pasta agora)</span></div>
+      <div class="extchips">${missing.map(e => chip(e, null, null)).join('')}</div></div>` : '';
+  const head = `<p class="small muted">${inv.extensions.length} extensão(ões) em ${inv.total_files} arquivo(s) de ${inv.folders.map(esc).join(', ')}${inv.without_extension ? ` · ${inv.without_extension} sem extensão` : ''}${inv.temporary ? ` · ${inv.temporary} download(s) em andamento ignorado(s)` : ''}. Passe o mouse para ver exemplos; o aviso amarelo indica extensão já usada por outra regra ativa.</p>`;
+  return head + (body || '<div class="empty small">Nenhum arquivo na pasta monitorada agora. Use o campo “Outras extensões”.</div>') + extra;
+}
+function selectedExts() {
+  const boxes = $$('#extPicker input[name=ext]');
+  return boxes.length ? new Set(boxes.filter(b => b.checked).map(b => b.value)) : new Set(UI.ruleForm?.conditions?.extensions || []);
+}
+async function loadExtPicker(force = false) {
+  const box = $('#extPicker');
+  if (!box) return;
+  const selected = selectedExts();
+  if (!UI.extInv || force) {
+    box.innerHTML = extPickerHtml(null);
+    try { UI.extInv = await call('extensions_scan'); }
+    catch (err) { box.innerHTML = `<div class="notice err small">${esc(err.message)}</div>`; return; }
+  }
+  if ($('#extPicker')) $('#extPicker').innerHTML = extPickerHtml(UI.extInv, selected, UI.ruleForm?.id);
+  filterExts();
+}
+function filterExts() {
+  const q = ($('#extFilter')?.value || '').trim().toLowerCase().replace(/^\./, '');
+  $$('#extPicker .extchip').forEach(c => { c.style.display = !q || c.dataset.ext.includes(q) ? '' : 'none'; });
+  $$('#extPicker .extgroup').forEach(g => { g.style.display = [...g.querySelectorAll('.extchip')].some(c => c.style.display !== 'none') ? '' : 'none'; });
+}
 function readRuleForm(form) {
   const f = new FormData(form);
   const toBytes = v => v === '' || v === null ? null : Math.round(parseFloat(String(v).replace(',', '.')) * 1048576);
@@ -346,7 +396,7 @@ function readRuleForm(form) {
     project_id: f.get('project_id'), create_destination: f.has('create_destination'), enabled: f.has('enabled'),
     rename_pattern: f.get('rename_pattern') || '',
     conditions: {
-      extensions: csv(f.get('extensions')), keywords: csv(f.get('keywords')), categories: f.getAll('cat'), formats: f.getAll('fmt'),
+      extensions: [...new Set([...f.getAll('ext'), ...csv(f.get('extensions_extra'))].map(e => e.toLowerCase()))], keywords: csv(f.get('keywords')), categories: f.getAll('cat'), formats: f.getAll('fmt'),
       prefix: f.get('prefix'), suffix: f.get('suffix'), glob: f.get('glob'), regex: f.get('regex'),
       size_min: toBytes(f.get('size_min')), size_max: toBytes(f.get('size_max')),
       modified_after: f.get('modified_after'), modified_before: f.get('modified_before'),
@@ -632,8 +682,15 @@ async function act(name, el = {}) {
       return run('review_decide', payload, { success: 'Decisão aplicada.' });
     }
     /* Regras */
-    case 'rule-new': UI.ruleForm = { priority: 5, enabled: true, create_destination: true, exceptions: [], conditions: {} }; render(); window.scrollTo(0, 0); return;
-    case 'rule-edit': UI.ruleForm = structuredClone(S.rules.find(r => r.id === d.id)); render(); window.scrollTo(0, 0); return;
+    case 'rule-new': UI.ruleForm = { priority: 5, enabled: true, create_destination: true, exceptions: [], conditions: {} }; UI.extInv = null; render(); window.scrollTo(0, 0); return loadExtPicker();
+    case 'rule-edit': UI.ruleForm = structuredClone(S.rules.find(r => r.id === d.id)); UI.extInv = null; render(); window.scrollTo(0, 0); return loadExtPicker();
+    case 'ext-scan': return loadExtPicker(true);
+    case 'ext-group': {
+      const boxes = $$(`#extPicker .extgroup[data-cat="${CSS.escape(d.cat)}"] input[name=ext]`).filter(b => b.closest('.extchip').style.display !== 'none');
+      const all = boxes.every(b => b.checked);
+      boxes.forEach(b => { b.checked = !all; b.closest('.extchip').classList.toggle('on', !all); });
+      return;
+    }
     case 'rule-cancel': UI.ruleForm = null; return render();
     case 'exc-add': $('#excList').insertAdjacentHTML('beforeend', excRowHtml({})); return;
     case 'exc-remove': el.closest('.exc-row').remove(); return;
@@ -714,7 +771,7 @@ async function act(name, el = {}) {
     case 'sugg-rule': {
       const s = UI.tools.suggestions[Number(d.i)];
       UI.ruleForm = { name: `${s.category} (${s.extension})`, priority: 5, enabled: true, create_destination: true, destination: s.suggested_destination, conditions: { extensions: s.extension ? [s.extension] : [], keywords: s.extension ? [] : s.keywords }, exceptions: [] };
-      TAB = 'regras'; render(); return;
+      TAB = 'regras'; UI.extInv = null; render(); return loadExtPicker();
     }
     case 'dup-del': {
       const v = await confirmBox({ title: 'Apagar cópia duplicada?', text: `<code>${esc(d.path)}</code><br>Só é apagada se o conteúdo for idêntico ao da cópia mantida.`, danger: true, password: true, okText: 'Apagar' });
@@ -844,6 +901,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => { if (e.target.closest('#modal')) return; e.preventDefault(); onSubmit(e.target); });
 document.addEventListener('change', async e => {
   if (e.target.id === 'simFilter') { UI.simFilter = e.target.value; render(); }
+  if (e.target.name === 'ext') e.target.closest('.extchip')?.classList.toggle('on', e.target.checked);
   if (e.target.id === 'qAuto') run('config_update', { changes: { quarantine_risky: e.target.checked } }, { success: 'Preferência salva.' });
   if (e.target.id === 'cfgImport' && e.target.files[0]) {
     try {
@@ -854,6 +912,7 @@ document.addEventListener('change', async e => {
   }
 });
 $('#menuToggle').addEventListener('click', () => $('#nav').classList.toggle('open'));
+document.addEventListener('input', e => { if (e.target.id === 'extFilter') filterExts(); });
 
 async function start() {
   const alive = await ping();

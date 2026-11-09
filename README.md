@@ -70,7 +70,7 @@ Mais detalhes em [`docs/conceitos-so.md`](docs/conceitos-so.md).
 
 **Requisitos do grupo (HU01–HU12 / RF01–RF14):**
 
-- Regras por **extensão** (HU01) e por **palavra no nome** (HU02), com pasta de destino (RF03).
+- Regras por **extensão** (HU01): o formulário lê a pasta monitorada e mostra **checkboxes** com as extensões encontradas, agrupadas por categoria, com a quantidade de arquivos e um aviso quando a extensão já é usada por outra regra ativa. Regras por **palavra no nome** (HU02), com pasta de destino (RF03).
 - **Prioridade** de 0 a 10, com botões ▲/▼ e empate indicado e enviado para revisão (HU03, HU04, RF11).
 - **Exceções** que impedem mover ou redirecionam para outra pasta, verificadas antes da regra (HU05).
 - Consultar, editar, excluir com confirmação, ativar e desativar regras (HU06–HU09).
@@ -193,7 +193,7 @@ O Chrome/Edge pede uma vez a permissão de **acesso à rede local**: clique em *
 python -m pytest -q                       # ou: cd tests && python -m unittest
 ```
 
-São **76 testes automatizados** em `tests/`. Eles cobrem:
+São **81 testes automatizados** em `tests/`. Eles cobrem:
 
 - cada história de usuário (HU01–HU12);
 - integridade SHA-256 e conflitos sem sobrescrever;

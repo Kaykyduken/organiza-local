@@ -638,6 +638,47 @@ class Organizer:
         self.store.event("duplicate_remove", "ok", source=str(victim), kept=str(survivor), sha256=digest)
         return {"deleted": str(victim), "kept": str(survivor)}
 
+    def extension_inventory(self, paths=None, recursive: bool | None = None) -> dict:
+        """Lê as pastas monitoradas e lista as extensões encontradas (para os checkboxes da regra).
+
+        Para cada extensão devolve: quantidade de arquivos, tamanho total, categoria,
+        até 3 nomes de exemplo e quais regras ATIVAS já usam essa extensão (ajuda a
+        evitar empates de prioridade). Arquivos sem extensão são contados à parte.
+        """
+        found: dict[str, dict] = {}
+        total = without_ext = temporary = 0
+        for file in self.scan(paths, recursive):
+            total += 1
+            ext = R.extension(file)
+            if not ext:
+                without_ext += 1
+                continue
+            if ext in R.TEMP_SUFFIX:          # .crdownload, .part... downloads incompletos não viram opção
+                temporary += 1
+                continue
+            item = found.setdefault(ext, {"ext": ext, "count": 0, "bytes": 0, "examples": [],
+                                          "category": R.category(file, self.config.get("categories"))})
+            item["count"] += 1
+            try:
+                item["bytes"] += file.stat().st_size
+            except OSError:
+                pass
+            if len(item["examples"]) < 3:
+                item["examples"].append(file.name)
+        # Quais regras ativas já usam cada extensão
+        used: dict[str, list[dict]] = {}
+        for rule in self.config["rules"]:
+            if rule.get("enabled", True):
+                for ext in rule.get("conditions", {}).get("extensions", []):
+                    used.setdefault(ext, []).append({"id": rule["id"], "name": rule["name"],
+                                                     "priority": rule.get("priority", 0)})
+        items = sorted(found.values(), key=lambda x: (-x["count"], x["ext"]))
+        for item in items:
+            item["used_by"] = used.get(item["ext"], [])
+        return {"folders": list(paths or self.config.get("watch_dirs", [])), "total_files": total,
+                "without_extension": without_ext, "temporary": temporary, "extensions": items, "used_by": used,
+                "timestamp": now()}
+
     def suggestions(self, paths=None) -> list[dict]:
         """Classificação heurística: sugere categoria/destino para arquivos sem regra."""
         out = []
