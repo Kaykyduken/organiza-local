@@ -574,7 +574,14 @@ function renderOffline() {
     <ol><li><b>Windows:</b> clique no atalho <b>OrganizaLocal</b> da Área de Trabalho ou do Menu Iniciar.</li>
     <li><b>Linux:</b> rode <code>organizalocal open</code> no terminal (ou use o atalho do menu de aplicativos).</li>
     <li>Se o navegador perguntar sobre <b>acesso à rede local</b>, clique em <b>Permitir</b> — é assim que o site fala com o programa em 127.0.0.1.</li></ol>
-    <p class="small muted">Procurando o programa em <code>${esc(API)}</code></p><button class="primary" data-act="retry">Tentar novamente</button></section>`;
+    <p class="small muted">Procurando o programa em <code>${esc(API)}</code></p><button class="primary" data-act="retry">Tentar novamente</button></section>
+    <section class="card"><h2>Ainda não instalou?</h2>
+    <p>Baixe o instalador. No Windows o Python já vem incluído; não é preciso administrador.</p>
+    <div class="row"><a class="btn primary" href="downloads/OrganizaLocal-Setup-1.0.0.exe" download>⬇ Windows (Setup.exe, 9 MB)</a>
+    <a class="btn" href="downloads/organizalocal_1.0.0_all.deb" download>⬇ Linux Ubuntu/Debian (.deb)</a>
+    <a class="btn ghost" href="https://github.com/Kaykyduken/organiza-local" target="_blank" rel="noopener">Código no GitHub</a></div>
+    <p class="small muted">Windows: abra o Setup.exe → Avançar → Instalar → Concluir. Se o SmartScreen avisar, clique em “Mais informações” → “Executar assim mesmo” (o instalador não é assinado digitalmente).<br>
+    Linux: dois cliques no .deb ou <code>sudo apt install ./organizalocal_1.0.0_all.deb</code>.</p></section>`;
 }
 function renderPairing() {
   setConnection(false, '● Aguardando pareamento');

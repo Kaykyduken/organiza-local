@@ -17,3 +17,8 @@ dados/
 
 # Vercel
 .vercel/
+
+# Instaladores: arquivos de build (os instaladores prontos ficam em web/downloads/)
+dist/
+installer/*/build/
+installer/windows/python-*-embed-amd64.zip

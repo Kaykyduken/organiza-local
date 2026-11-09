@@ -73,7 +73,8 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 button, .btn { font: inherit; border-radius: 9px; padding: 7px 13px; border: 1px solid var(--border);
   background: var(--surface-2); color: var(--text); cursor: pointer; }
 button:hover { filter: brightness(.97); }
-button.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); font-weight: 600; }
+a.btn { text-decoration: none; display: inline-block; }
+button.primary, a.btn.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); font-weight: 600; }
 button.danger { color: var(--err); border-color: var(--err-soft); background: var(--err-soft); }
 button.ghost { background: transparent; border-color: transparent; }
 button.icon { padding: 3px 9px; }

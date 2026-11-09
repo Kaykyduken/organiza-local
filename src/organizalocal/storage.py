@@ -87,7 +87,7 @@ def initial_config() -> dict:
     return {
         "version": 2,
         "theme": "claro",                          # claro | escuro | neon
-        "site_url": "",                            # URL da interface publicada na Vercel
+        "site_url": "https://organiza-local.vercel.app",  # interface publicada na Vercel
         "extra_origins": [],                       # outras origens web autorizadas
         # --- Organização automática ---------------------------------------
         "watch_dirs": [str(downloads)],            # padrão: pasta Downloads

@@ -33,7 +33,7 @@ O painel de controle é um **site publicado na Vercel**. Ao clicar no atalho do 
 
 | Integrante | Responsabilidade principal |
 |---|---|
-| Kayky Gabriel Silvano Tomé | revisão e otimização do codigo, versão online, criação do site e integração com a Vercel |
+| Kayky Gabriel Silvano Tomé | Arquitetura, motor de regras e integração com a Vercel |
 | `<Integrante 2>` | `<ex.: backups e restauração>` |
 | `<Integrante 3>` | `<ex.: scripts de instalação e automação>` |
 | `<Integrante 4>` | `<ex.: interface web e testes>` |
@@ -95,29 +95,56 @@ Mais detalhes em [`docs/conceitos-so.md`](docs/conceitos-so.md).
 
 ## 6. Instalação e execução
 
-### Windows
+### Instalador (recomendado)
 
-1. Instale o **Python 3.10+** em [python.org](https://www.python.org/downloads/) e marque **"Add python.exe to PATH"**.
-2. Baixe o repositório (**Code → Download ZIP**) e extraia.
-3. Dê dois cliques em **`scripts\instalar.bat`**. Não precisa ser administrador.
-4. O instalador:
-   - cria `%APPDATA%\OrganizaLocal`;
-   - cria os atalhos na Área de Trabalho e no Menu Iniciar;
-   - coloca o serviço na pasta Inicializar;
-   - abre o site.
-5. Nas próximas vezes, use o atalho **OrganizaLocal**.
+Baixe em **https://organiza-local.vercel.app** (botões “Ainda não instalou?”) ou na pasta [`web/downloads/`](web/downloads):
 
-### Linux
+| Sistema | Arquivo | Como instalar |
+|---|---|---|
+| **Windows 10/11** | `OrganizaLocal-Setup-1.0.0.exe` (9 MB, **Python já incluído**) | Dois cliques → Avançar → Instalar → Concluir. Não precisa de administrador. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `organizalocal_1.0.0_all.deb` | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.0.0_all.deb` |
+
+**Instalador do Windows:**
+
+- Instala o programa e o Python 3.12 oficial em `%LOCALAPPDATA%\Programs\OrganizaLocal` e cria a pasta de dados `%APPDATA%\OrganizaLocal`.
+- Cria os atalhos no Menu Iniciar e, opcionalmente, na Área de Trabalho.
+- Opcionalmente, inicia o serviço com o Windows, para a organização de hora em hora.
+- Adiciona o comando `organizalocal` ao PATH e registra o desinstalador em *Configurações → Aplicativos*.
+- Como o instalador não tem assinatura digital paga, o SmartScreen pode avisar na primeira vez. Clique em **Mais informações → Executar assim mesmo**.
+
+**Pacote do Linux:**
+
+- Instala em `/opt/organizalocal` e cria o comando `organizalocal` e o atalho no menu de aplicativos.
+- Inicia o serviço ao entrar na sessão, pelo `/etc/xdg/autostart`.
+- Os dados de cada usuário ficam em `~/.local/share/OrganizaLocal`.
+- Para remover: `sudo apt remove organizalocal`. Os dados são mantidos.
+
+**Gerar os instaladores** (a partir do código):
+
+```bash
+./installer/windows/build.sh     # requer makensis (sudo apt install nsis); baixa e confere o Python embutido
+./installer/linux/build-deb.sh   # requer dpkg-deb
+# saída em dist/
+```
+
+### Scripts (alternativa sem instalador)
+
+**Windows:**
+
+1. Instale o **Python 3.10+** em [python.org](https://www.python.org/downloads/), marcando **"Add python.exe to PATH"**.
+2. Dê dois cliques em **`scripts\instalar.bat`**.
+
+**Linux:**
 
 ```bash
 git clone https://github.com/Kaykyduken/organiza-local.git
 cd organiza-local
 chmod +x scripts/*.sh
-./scripts/instalar.sh --site https://organiza-local.vercel.app
+./scripts/instalar.sh
 organizalocal open        # abre o painel (o atalho do menu faz o mesmo)
 ```
 
-A instalação cria `~/.local/share/OrganizaLocal` (permissão 700), o comando `~/.local/bin/organizalocal`, o atalho `.desktop` e a entrada `@reboot` no `crontab`.
+O script cria `~/.local/share/OrganizaLocal` (permissão 700), o comando `~/.local/bin/organizalocal`, o atalho `.desktop` e a entrada `@reboot` no `crontab`.
 
 ### Sem instalar (desenvolvimento)
 
@@ -223,6 +250,7 @@ organiza-local/
 │   └── cli.py           # comandos de terminal
 ├── web/                 # site publicado na Vercel (HTML/CSS/JS)
 ├── scripts/             # instalação e automação (Bash, PowerShell, Batch)
+├── installer/           # geração do Setup.exe (NSIS) e do pacote .deb
 ├── tests/               # testes automatizados
 ├── docs/                # conceitos de SO, prints e documento do projeto
 ├── vercel.json
