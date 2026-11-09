@@ -38,7 +38,7 @@ O painel de controle é um **site publicado na Vercel**. Ao clicar no atalho do 
 | `<Integrante 3>` | `<ex.: scripts de instalação e automação>` |
 | `<Integrante 4>` | `<ex.: interface web e testes>` |
 
-> As contribuições de cada integrante podem ser conferidas no histórico de commits do GitHub (`git shortlog -sn`).
+> As contribuições de cada integrante podem ser conferidas no histórico de commits do GitHub (`git shortlog -sn`). Como trabalhar no repositório (branches, testes e pull requests): [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## 3. Tecnologias
 
