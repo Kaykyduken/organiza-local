@@ -580,7 +580,7 @@ function renderOffline() {
     <div class="row"><a class="btn primary" href="downloads/OrganizaLocal-Setup-1.0.0.exe" download>⬇ Windows (Setup.exe, 9 MB)</a>
     <a class="btn" href="downloads/organizalocal_1.0.0_all.deb" download>⬇ Linux Ubuntu/Debian (.deb)</a>
     <a class="btn ghost" href="https://github.com/Kaykyduken/organiza-local" target="_blank" rel="noopener">Código no GitHub</a></div>
-    <p class="small muted">Windows: abra o Setup.exe → Avançar → Instalar → Concluir. Se o SmartScreen avisar, clique em “Mais informações” → “Executar assim mesmo” (o instalador não é assinado digitalmente).<br>
+    <p class="small muted">Windows: abra o Setup.exe → Próximo → Instalar → Concluir. Se o SmartScreen avisar, clique em “Mais informações” → “Executar assim mesmo” (o instalador não é assinado digitalmente).<br>
     Linux: dois cliques no .deb ou <code>sudo apt install ./organizalocal_1.0.0_all.deb</code>.</p></section>`;
 }
 function renderPairing() {

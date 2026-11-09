@@ -101,7 +101,7 @@ Baixe em **https://organiza-local.vercel.app** (botões “Ainda não instalou?�
 
 | Sistema | Arquivo | Como instalar |
 |---|---|---|
-| **Windows 10/11** | `OrganizaLocal-Setup-1.0.0.exe` (9 MB, **Python já incluído**) | Dois cliques → Avançar → Instalar → Concluir. Não precisa de administrador. |
+| **Windows 10/11** | `OrganizaLocal-Setup-1.0.0.exe` (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
 | **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `organizalocal_1.0.0_all.deb` | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.0.0_all.deb` |
 
 **Instalador do Windows:**

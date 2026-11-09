@@ -51,15 +51,16 @@ ${UnStrRep}
 !define MUI_WELCOMEFINISHPAGE_BITMAP   "..\assets\wizard.bmp"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "..\assets\wizard.bmp"
 !define MUI_ABORTWARNING
+!define MUI_COMPONENTSPAGE_SMALLDESC              ; lista de componentes na largura toda
 
 !define MUI_WELCOMEPAGE_TITLE "Bem-vindo ao OrganizaLocal ${VERSION}"
-!define MUI_WELCOMEPAGE_TEXT "O OrganizaLocal organiza automaticamente, de hora em hora, os arquivos da sua pasta Downloads seguindo as regras que você criar, e faz backups com várias versões.$\r$\n$\r$\nTudo acontece no seu computador: nenhum arquivo é enviado para a internet.$\r$\n$\r$\nO Python já vem incluído — não é preciso instalar mais nada.$\r$\n$\r$\nClique em Avançar para continuar."
+!define MUI_WELCOMEPAGE_TEXT "O OrganizaLocal organiza automaticamente, de hora em hora, os arquivos da sua pasta Downloads seguindo as regras que você criar, e faz backups com várias versões.$\r$\n$\r$\nTudo acontece no seu computador: nenhum arquivo é enviado para a internet.$\r$\n$\r$\nO Python já vem incluído — não é preciso instalar mais nada.$\r$\n$\r$\nClique em Próximo para continuar."
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "Instalação concluída"
-!define MUI_FINISHPAGE_TEXT "O OrganizaLocal foi instalado.$\r$\n$\r$\nAs regras de exemplo vêm DESATIVADAS: revise-as na aba Regras antes de ativar. Use Simular para ver o que seria movido.$\r$\n$\r$\nSe o navegador pedir acesso à rede local, clique em Permitir."
+!define MUI_FINISHPAGE_TEXT "As regras de exemplo vêm desativadas: revise-as na aba Regras.$\r$\n$\r$\nSe o navegador pedir acesso à rede local, clique em Permitir."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Abrir o OrganizaLocal agora"
 !define MUI_FINISHPAGE_RUN_FUNCTION AbrirApp
