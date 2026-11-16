@@ -31,12 +31,13 @@ O painel de controle é um **site publicado na Vercel**. Ao clicar no atalho do 
 
 ## 2. Integrantes
 
-| Integrante | Responsabilidade principal |
+| Integrante | Responsabilidades principais |
 |---|---|
-| Kayky Gabriel Silvano Tomé | Arquitetura, motor de regras e integração com a Vercel |
-| `<Integrante 2>` | `<ex.: backups e restauração>` |
-| `<Integrante 3>` | `<ex.: scripts de instalação e automação>` |
-| `<Integrante 4>` | `<ex.: interface web e testes>` |
+| Bernardo | Gestão das regras, definição de prioridades e análise dos resultados da execução |
+| Kauã Oliveira Lopes | Validação e testes das regras, identificação de conflitos de nomes e revisão da documentação |
+| Kayky Gabriel Silvano Tomé | Arquitetura, desenvolvimento do motor de regras e integração com a Vercel |
+| Matheus | Levantamento dos requisitos funcionais e não funcionais, realização de backups, segurança e elaboração de relatórios |
+| Reinaldo Gomes da Silva Filho | Elaboração de histórias adicionais, realização de testes e simulações e consolidação da documentação 
 
 > As contribuições de cada integrante podem ser conferidas no histórico de commits do GitHub (`git shortlog -sn`). Como trabalhar no repositório (branches, testes e pull requests): [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
