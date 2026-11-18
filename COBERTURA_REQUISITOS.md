@@ -48,13 +48,13 @@ Este documento junta três conjuntos de requisitos:
 
 | RNF | Como é atendido |
 |---|---|
-| RNF01 Desempenho | Varredura com `os.walk`; no mesmo disco usa `os.rename` (sem cópia); duplicados agrupam primeiro por tamanho; limite de 25 000 arquivos por varredura. Testes: 76 em ~16 s ✅ |
+| RNF01 Desempenho | Varredura com `os.walk`; no mesmo disco usa `os.rename` (sem cópia); duplicados agrupam primeiro por tamanho; limite de 25 000 arquivos por varredura. Testes: 81 aprovados com `unittest` ✅ |
 | RNF02 Usabilidade | Interface web em português, formulários com exemplos, regras de exemplo prontas (desativadas), simulação antes de mover ✅ |
 | RNF03 Segurança | `os.access` antes de mover; pasta de dados protegida; API só em 127.0.0.1 com token e origem validada; perfis/PIN; senha crítica ✅ |
 | RNF04 Confiabilidade | Cada falha registrada com motivo; `status` ok/partial/error; movimentação só é registrada como `ok` depois de conferir o SHA-256 ✅ |
 | RNF05 Integridade | SHA-256 antes e depois de cada movimentação; rollback se divergir ✅ |
 | RNF06 Compatibilidade | Windows 10/11 e Linux, Python 3.10+; scripts para os dois; caminhos com `pathlib`. Testado em Linux; Windows validado por análise e parse dos scripts ☑️ |
-| RNF07 Manutenibilidade | Módulos separados por responsabilidade, código comentado, 76 testes ✅ |
+| RNF07 Manutenibilidade | Módulos separados por responsabilidade, código comentado, 81 testes ✅ |
 | RNF08 Persistência | `config.json` com escrita atômica + versões da configuração ✅ |
 | RNF09 Recuperação de erros | `friendly_error`: sem permissão, destino inexistente/inválido, arquivo em uso (WinError 32), disco cheio ✅ |
 | RNF10 Segurança operacional | Política definida: renomear (padrão), revisar ou ignorar. Substituir só com confirmação, e guarda cópia antes ✅ |
