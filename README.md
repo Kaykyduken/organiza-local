@@ -168,6 +168,15 @@ O site é a pasta `web/`, configurada pelo `vercel.json`. Basta importar o repos
 
 O Chrome/Edge pede uma vez a permissão de **acesso à rede local**: clique em **Permitir**.
 
+**Verificar a integridade dos instaladores:**
+
+```bash
+cd web/downloads
+sha256sum -c SHA256SUMS.txt
+```
+
+O comando deve retornar `OK` para o instalador do Windows e para o pacote Linux.
+
 ## 7. Comandos e scripts de automação
 
 | Comando | O que faz |
@@ -191,7 +200,9 @@ O Chrome/Edge pede uma vez a permissão de **acesso à rede local**: clique em *
 ## 8. Como testar
 
 ```bash
-python -m pytest -q                       # ou: cd tests && python -m unittest
+python -m unittest discover -s tests -q  # recomendado; não exige dependências externas
+# opcional, se pytest estiver instalado:
+python -m pytest -q
 ```
 
 São **81 testes automatizados** em `tests/`. Eles cobrem:
