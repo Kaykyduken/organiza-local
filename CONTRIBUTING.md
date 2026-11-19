@@ -60,11 +60,14 @@ Depois, acesse `http://127.0.0.1:8765`. Para parar, use `Ctrl+C` no terminal.
 ## 4. Rodar os testes
 
 ```bash
-python -m pytest -q                 # se tiver o pytest
-cd tests && python -m unittest      # sem instalar nada
+python -m unittest discover -s tests -q  # recomendado; sem instalar nada
+# opcional, se pytest estiver instalado:
+python -m pytest -q
 ```
 
 Hoje são **81 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
+
+Não há CI automatizado configurado no repositório. Antes de abrir um pull request, rode o comando recomendado e informe o resultado. A validação do Windows é parcial até que o instalador e o fluxo de autostart sejam executados em Windows real.
 
 ## 5. O fluxo de uma tarefa
 
@@ -83,7 +86,8 @@ Hoje são **81 testes** e todos devem passar. Cada teste roda numa pasta tempor�
 git switch main && git pull
 git switch -c minha-tarefa
 # ... alterações ...
-python -m pytest -q
+python -m unittest discover -s tests -q
+# opcional: python -m pytest -q
 git add -A
 git commit -m "Backups: mostra o tamanho de cada versão"
 git push -u origin minha-tarefa
