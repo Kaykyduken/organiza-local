@@ -283,6 +283,8 @@ def normalize_rule(payload: dict) -> dict:
     rule["enabled"] = bool(rule.get("enabled", True))
     rule["create_destination"] = bool(rule.get("create_destination", True))
     rule["destination"] = str(rule.get("destination") or "").strip()
+    rule["sources"] = list(dict.fromkeys(_as_list(rule.get("sources"))))
+    rule["source_recursive"] = bool(rule.get("source_recursive", False))
     rule.setdefault("rename_pattern", "")
     rule.setdefault("project_id", "")
     exceptions = []
@@ -354,7 +356,35 @@ def validate_rule(rule: dict, *, is_protected=None, can_write=None) -> list[str]
     return errors
 
 
-def evaluate(path, rules: list[dict], custom_categories: dict | None = None, only_rule: str | None = None) -> dict:
+def in_source(path: Path, source: str, recursive: bool) -> bool:
+    try:
+        folder = Path(source).expanduser()
+        if not folder.is_absolute():
+            return False
+        relative = path.resolve().relative_to(folder.resolve())
+        return bool(relative.parts) and (recursive or len(relative.parts) == 1)
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def sources_overlap(a: dict, b: dict) -> bool:
+    if not a.get("sources") or not b.get("sources"):
+        return True
+    for left in a["sources"]:
+        for right in b["sources"]:
+            try:
+                if Path(left).expanduser().resolve() == Path(right).expanduser().resolve():
+                    return True
+            except (OSError, RuntimeError):
+                continue
+            if (a.get("source_recursive") and in_source(Path(right), left, True)
+                    or b.get("source_recursive") and in_source(Path(left), right, True)):
+                return True
+    return False
+
+
+def evaluate(path, rules: list[dict], custom_categories: dict | None = None, only_rule: str | None = None,
+             *, original_path=None, scoped_only: bool = False) -> dict:
     """Decide qual regra vale para o arquivo (HU03 / RF11).
 
     Retorna:
@@ -367,6 +397,8 @@ def evaluate(path, rules: list[dict], custom_categories: dict | None = None, onl
     candidates = [r for r in rules
                   if r.get("enabled", True)                      # HU09: desativadas não participam
                   and (not only_rule or r.get("id") == only_rule)
+                  and (any(in_source(Path(original_path or path), source, r.get("source_recursive", False))
+                           for source in r["sources"]) if r.get("sources") else not scoped_only)
                   and matches(path, r.get("conditions", {}), custom_categories)]
     candidates.sort(key=lambda r: int(r.get("priority", 0)), reverse=True)
     result = {"matched": candidates, "rule": None, "conflict": len(candidates) > 1,
@@ -397,6 +429,8 @@ def overlapping_rules(rules: list[dict]) -> list[dict]:
         for b in active[i + 1:]:
             if int(a.get("priority", 0)) != int(b.get("priority", 0)):
                 continue
+            if not sources_overlap(a, b):
+                continue
             ca, cb = a.get("conditions", {}), b.get("conditions", {})
             shared = []
             for key in ("extensions", "categories", "keywords", "formats"):
@@ -405,7 +439,8 @@ def overlapping_rules(rules: list[dict]) -> list[dict]:
                     shared.append(f"{key}: {', '.join(sorted(common))}")
             only_one_side = any((k in ca) != (k in cb) for k in ("extensions", "keywords"))
             if shared or ca == cb or only_one_side:
-                problems.append({"rules": [a.get("name"), b.get("name")], "priority": a.get("priority"),
+                problems.append({"rules": [a.get("name"), b.get("name")], "rule_ids": [a.get("id"), b.get("id")],
+                                 "priority": a.get("priority"),
                                  "detail": "; ".join(shared) or "condições podem coincidir"})
     return problems
 

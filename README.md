@@ -9,7 +9,7 @@ Orientador: Prof. Me. Deivison S. Takatu.
 |---|---|
 | **Instalar o programa** | [Instaladores para Windows e Linux](Instaladores/) |
 | Painel (site) | https://organiza-local.vercel.app *(abre e controla o programa local)* |
-| Versão | 1.0.0 |
+| Versão | 1.1.0 |
 | Sistemas | Windows 10/11 e Linux |
 | Linguagem | Python 3.10+ (somente biblioteca padrão, funciona offline) |
 
@@ -103,8 +103,8 @@ Abra a pasta [Instaladores](Instaladores/) na raiz do projeto e escolha o arquiv
 
 | Sistema | Arquivo | Como instalar |
 |---|---|---|
-| **Windows 10/11** | [OrganizaLocal-Setup-1.0.0.exe](Instaladores/OrganizaLocal-Setup-1.0.0.exe) (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
-| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | [organizalocal_1.0.0_all.deb](Instaladores/organizalocal_1.0.0_all.deb) | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.0.0_all.deb` na pasta Instaladores |
+| **Windows 10/11** | [OrganizaLocal-Setup-1.1.0.exe](Instaladores/OrganizaLocal-Setup-1.1.0.exe) (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | [organizalocal_1.1.0_all.deb](Instaladores/organizalocal_1.1.0_all.deb) | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.1.0_all.deb` na pasta Instaladores |
 
 **Instalador do Windows:**
 
@@ -144,20 +144,25 @@ Veja os demais comandos no [guia para Linux](scripts/Linux/README.md).
 
 | Sistema | Comando a partir da raiz do projeto |
 |---|---|
-| Windows (PowerShell) | `.\scripts\Windows\iniciar.bat` |
-| Linux (terminal) | `bash scripts/Linux/iniciar.sh` |
+| Windows (PowerShell) | `.\scripts\Windows\iniciar.bat serve --local` |
+| Linux (terminal) | `bash scripts/Linux/iniciar.sh serve --local` |
 
 Depois, acesse `http://127.0.0.1:8765`.
 
 ### Primeiros passos
 
-1. Aba **Regras**: as 5 regras de exemplo vêm **desativadas**. Revise e ative as que quiser, ou crie novas.
-2. Aba **Organização**: clique em **Simular**, confira e depois em **Organizar agora**. Ou espere a execução automática.
-3. Aba **Backups**: crie uma regra de backup para as pastas importantes.
+1. Em **Painel**, clique em **Criar minha primeira regra**. Escolha uma origem própria para a regra ou as pastas monitoradas nas configurações. As regras de exemplo ficam desativadas.
+2. Marque os tipos de arquivo no catálogo, escolha o destino e clique em **Simular esta regra**. Confira a prévia e escolha **Salvar e ativar** ou **Salvar desativada**. Salvar guarda a regra para execuções futuras.
+3. Em **Organização**, simule todas as regras ou clique em **Organizar agora** e confirme. Em **Histórico**, use os filtros para consultar movimentações, simulações e backups.
+4. Em **Backups**, clique em **Criar backup**, selecione o que copiar e revise a frequência e o limite de versões antes de salvar.
+
+O seletor nativo de pasta ou arquivo é oferecido no Windows. O campo de caminho completo também está disponível. Regras salvas antes do assistente continuam usando as pastas monitoradas e podem receber uma origem própria ao editar. Os rascunhos dos assistentes ficam na sessão enquanto você navega pelo painel.
+
+Para escolher o que o ícone do OrganizaLocal abre, vá a **Configurações → Integração**, escolha **Painel local** ou **Site publicado** e salve.
 
 ### Publicação na Vercel
 
-Ao importar o repositório na Vercel com o framework **Other**, o comando em `vercel.json` prepara `dist/site/` com a interface de `web/` e os arquivos de download de `Instaladores/`. Depois, informe a URL em **Configurações → URL do site** ou use `--site` no instalador.
+Ao importar o repositório na Vercel com o framework **Other**, o comando em `vercel.json` prepara `dist/site/` com a interface de `web/` e os arquivos de download de `Instaladores/`. Depois, selecione **Site publicado** em **Configurações → Integração** e informe a URL. O instalador por script também aceita `--site` no Linux e `-Site` no Windows.
 
 O Chrome/Edge pede uma vez a permissão de **acesso à rede local**: clique em **Permitir**.
 
@@ -198,7 +203,7 @@ python -m unittest discover -s tests -q  # recomendado; não exige dependências
 python -m pytest -q
 ```
 
-São **83 testes automatizados** em `tests/`. Eles cobrem:
+São **92 testes automatizados** em `tests/`. Eles cobrem:
 
 - cada história de usuário (HU01–HU12);
 - integridade SHA-256 e conflitos sem sobrescrever;

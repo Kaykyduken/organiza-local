@@ -17,7 +17,7 @@ Target amd64-unicode                             ; instalador 64 bits (o Python 
 SetCompressor /SOLID lzma
 
 !ifndef VERSION
-  !define VERSION "1.0.0"
+  !define VERSION "1.1.0"
 !endif
 !define APPNAME   "OrganizaLocal"
 !define PUBLISHER "Equipe OrganizaLocal - FATEC Itapetininga"

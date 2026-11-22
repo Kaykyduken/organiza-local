@@ -18,5 +18,5 @@ Módulos:
 """
 
 APP_NAME = "OrganizaLocal"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 DEFAULT_PORT = 8765

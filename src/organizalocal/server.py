@@ -26,7 +26,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import APP_NAME, DEFAULT_PORT, VERSION
-from . import archives, rules as R, sysinfo
+from . import archives, native_picker, rules as R, sysinfo
 from .backups import Backups
 from .organizer import ACTION_LABELS, Organizer, friendly_error
 from .reports import Reports
@@ -103,7 +103,8 @@ class App:
         index = self.backups.index()
         return {
             "app": {"name": APP_NAME, "version": VERSION, "data_dir": str(self.store.root), "port": self.port,
-                    "os": os.name, "platform": sysinfo.platform.system()},
+                    "os": os.name, "platform": sysinfo.platform.system(),
+                    "features": {"native_picker": os.name == "nt", "rule_scope": True}},
             "config": self.safe_config(),
             "rules": self.organizer.ordered_rules(),
             "problems": self.organizer.validate_all(),
@@ -262,6 +263,13 @@ class App:
     # ------------------------------------------------------------------
     # Tabela de ações: nome -> (permissão, função)
     # ------------------------------------------------------------------
+    def simulate(self, payload: dict) -> dict:
+        only_rule = payload.get("only_rule") or None
+        result = self.organizer.simulate(payload.get("paths") or None, only_rule)
+        self.store.event("simulate", "ok", rule_id=only_rule or "", processed=result["count"],
+                         would_move=result["would_move"])
+        return result
+
     def actions(self) -> dict:
         o, b, rp, s = self.organizer, self.backups, self.reports, self.security
         crit = s.require_critical
@@ -290,9 +298,11 @@ class App:
             "storage_history": ("read", lambda p: rp.storage_history()),
             "sandbox_list": ("read", lambda p: o.sandbox_list()),
             "sysinfo": ("read", lambda p: sysinfo.collect(self.store, self.scheduler)),
+            "select_path": ("read", lambda p: native_picker.select_path(p.get("kind", ""))),
             "profile_switch": ("read", lambda p: s.switch_profile(p["name"], p.get("pin", ""))),
             # análise / simulação (HU10)
-            "simulate": ("analyze", lambda p: o.simulate(p.get("paths") or None, p.get("only_rule") or None)),
+            "simulate": ("analyze", self.simulate),
+            "simulate_draft": ("analyze", lambda p: o.simulate_draft(p["rule"], p.get("id") or None)),
             "simulate_export": ("analyze", lambda p: rp.export_simulation(
                 o.simulate(p.get("paths") or None, p.get("only_rule") or None))),
             "rules_validate": ("analyze", lambda p: o.validate_all()),
@@ -301,6 +311,7 @@ class App:
             "extensions_scan": ("analyze", lambda p: o.extension_inventory(p.get("paths") or None,
                                                                          p.get("recursive"))),
             "integrity": ("analyze", lambda p: o.integrity(p["path"], p.get("expected", ""))),
+            "rename_preview": ("organize", lambda p: o.rename_preview(p["path"], p["pattern"], int(p.get("sequence", 1)))),
             "archive_inspect": ("analyze", lambda p: archives.inspect(o, p["path"])),
             "sandbox_run": ("analyze", lambda p: o.sandbox_run(p.get("paths") or None)),
             "sandbox_delete": ("analyze", lambda p: o.sandbox_delete(p["id"])),
@@ -308,12 +319,14 @@ class App:
             "backup_compare": ("analyze", lambda p: b.compare(p["job_id"], p["a"], p["b"])),
             "backup_verify": ("analyze", lambda p: b.verify(p["job_id"], p["version_id"])),
             "report": ("analyze", lambda p: rp.daily_pdf(p.get("day", ""))),
+            "history_pdf": ("analyze", lambda p: rp.history_pdf(p.get("filters", {}))),
             # organização (HU11)
             "organize": ("organize", lambda p: o.organize(p.get("paths") or None, p.get("only_rule") or None,
                                                           p.get("conflict") or None)),
             "review_decide": ("organize", lambda p: o.resolve_review(p["id"], p["decision"],
                                                                      p.get("destination", ""), bool(p.get("confirm")))),
-            "rename_file": ("organize", lambda p: o.rename_file(p["path"], p["pattern"], int(p.get("sequence", 1)))),
+            "rename_file": ("organize", lambda p: o.rename_file(p["path"], p["pattern"], int(p.get("sequence", 1)),
+                                                               p.get("expected", ""))),
             "archive_extract": ("organize", lambda p: archives.extract(o, p["path"], p["directory"])),
             # regras (HU03–HU09)
             "rule_save": ("rules", lambda p: o.save_rule(p["rule"], p.get("id") or None)),

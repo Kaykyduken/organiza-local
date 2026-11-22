@@ -10,7 +10,7 @@
 #   /usr/share/icons/hicolor/256x256/apps/organizalocal.png
 # Os dados de cada usuário continuam em ~/.local/share/OrganizaLocal.
 #
-# Instalar:  dois cliques no .deb  ou  sudo apt install ./organizalocal_1.0.0_all.deb
+# Instalar:  dois cliques no .deb  ou  sudo apt install ./organizalocal_1.1.0_all.deb
 # Remover:   sudo apt remove organizalocal   (os dados do usuário são mantidos)
 # =============================================================================
 set -euo pipefail

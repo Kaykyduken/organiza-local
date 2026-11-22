@@ -49,7 +49,8 @@ def memory() -> dict:
                         ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
         status = MEMORYSTATUSEX()
         status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))   # type: ignore[attr-defined]
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):   # type: ignore[attr-defined]
+            return {"total": None, "available": None, "percent_used": None, "source": "kernel32.GlobalMemoryStatusEx"}
         return {"total": status.ullTotalPhys, "available": status.ullAvailPhys,
                 "percent_used": status.dwMemoryLoad, "source": "kernel32.GlobalMemoryStatusEx"}
     info = _linux_meminfo()
@@ -59,7 +60,7 @@ def memory() -> dict:
             "source": "/proc/meminfo"}
 
 
-def process_memory() -> int:
+def process_memory() -> int | None:
     """Memória residente (RSS) do processo atual em bytes."""
     if os.name == "nt":
         import ctypes
@@ -73,9 +74,14 @@ def process_memory() -> int:
                         ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
         counters = PROCESS_MEMORY_COUNTERS()
         counters.cb = ctypes.sizeof(counters)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()                  # type: ignore[attr-defined]
-        ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb)  # type: ignore
-        return int(counters.WorkingSetSize)
+        current_process = ctypes.windll.kernel32.GetCurrentProcess          # type: ignore[attr-defined]
+        current_process.restype = wintypes.HANDLE
+        process_info = ctypes.windll.psapi.GetProcessMemoryInfo             # type: ignore[attr-defined]
+        process_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESS_MEMORY_COUNTERS), wintypes.DWORD]
+        process_info.restype = wintypes.BOOL
+        if process_info(current_process(), ctypes.byref(counters), counters.cb):
+            return int(counters.WorkingSetSize)
+        return None
     try:
         for line in Path("/proc/self/status").read_text().splitlines():
             if line.startswith("VmRSS:"):
@@ -86,7 +92,7 @@ def process_memory() -> int:
         import resource
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     except (ImportError, OSError):
-        return 0
+        return None
 
 
 def cpu() -> dict:

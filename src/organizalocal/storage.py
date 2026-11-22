@@ -298,6 +298,9 @@ class Store:
             return []
         found: deque = deque(maxlen=max(1, int(limit)))
         query = str(filters.get("q", "")).casefold()
+        from_day = str(filters.get("from_date") or "")
+        to_day = str(filters.get("to_date") or "")
+        operations = filters.get("operations") or []
         with self.lock, open(self.history_path, encoding="utf-8") as handle:
             for line in handle:
                 try:
@@ -310,6 +313,10 @@ class Store:
                     if wanted and str(event.get(key, "")).casefold() != str(wanted).casefold():
                         skip = True
                 if filters.get("date") and not str(event.get("timestamp", "")).startswith(filters["date"]):
+                    skip = True
+                day = str(event.get("timestamp", ""))[:10]
+                if ((from_day and day < from_day) or (to_day and day > to_day)
+                        or (operations and event.get("operation") not in operations)):
                     skip = True
                 if query and query not in json.dumps(event, ensure_ascii=False).casefold():
                     skip = True

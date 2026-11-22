@@ -17,7 +17,8 @@ OPERATION_NAMES = {
     "move": "Movido", "quarantine": "Quarentena", "organize": "Organização", "backup": "Backup",
     "restore": "Restauração", "undo": "Desfeito", "review": "Revisão", "rename": "Renomeado",
     "rule_save": "Regra salva", "rule_delete": "Regra excluída", "rule_toggle": "Regra ativada/desativada",
-    "rule_priority": "Prioridade alterada", "config_save": "Configuração", "external_change": "Alteração externa",
+    "rule_priority": "Prioridade alterada", "config_save": "Configurações atualizadas", "external_change": "Alteração externa",
+    "simulate": "Simulação", "service_start": "Aplicativo iniciado", "service_stop": "Aplicativo encerrado",
 }
 
 
@@ -150,20 +151,41 @@ class Reports:
     def daily_pdf(self, day: str = "") -> dict:
         day = day or date.today().isoformat()
         date.fromisoformat(day)                                 # valida o formato
-        events = list(reversed(self.store.history({"date": day}, limit=20000)))
-        lines = [f"Data: {day}   |   Operações registradas: {len(events)}   |   Gerado em {now()}", ""]
+        return self.activity_pdf({"date": day}, f"relatorio_{day}.pdf", "Relatório diário")
+
+    def history_pdf(self, filters: dict) -> dict:
+        for key in ("from_date", "to_date"):
+            if filters.get(key):
+                date.fromisoformat(filters[key])
+        filename = datetime.now().strftime("historico_%Y%m%d_%H%M%S_%f.pdf")
+        return self.activity_pdf(filters, filename, "Histórico de atividades")
+
+    def activity_pdf(self, filters: dict, filename: str, title: str) -> dict:
+        events = list(reversed(self.store.history(filters, limit=20000)))
+        dates = filters.get("date") or f"{filters.get('from_date') or 'início'} até {filters.get('to_date') or 'hoje'}"
+        lines = [f"Período: {dates}   |   Operações registradas: {len(events)}   |   Gerado em {now()}"]
+        if filters.get("operation") or filters.get("operations"):
+            operations = filters.get("operations") or [filters["operation"]]
+            lines.append("Atividades: " + ", ".join(OPERATION_NAMES.get(op, op) for op in operations))
+        if filters.get("status"):
+            lines.append(f"Status: {filters['status']}")
+        if filters.get("q"):
+            lines.append(f"Busca: {filters['q']}")
+        if len(events) == 20000:
+            lines.append("Exibindo até os últimos 20.000 registros correspondentes.")
+        lines.append("")
         for e in events:
             op = OPERATION_NAMES.get(e.get("operation"), e.get("operation"))
-            lines.append(f"{e.get('timestamp', '')[11:19]}  {op}  [{e.get('status')}]  "
-                         f"{e.get('rule_name') or e.get('detail') or ''}")
+            line = str(e.get("timestamp", ""))[:19].replace("T", " ", 1)
+            detail = e.get("rule_name") or (e.get("detail") if e.get("operation") not in ("config_save", "service_start", "service_stop") else "")
+            lines.append(f"{line}  {op}  [{e.get('status')}]  {detail or ''}")
             if e.get("source"):
                 lines.append(f"     Origem:  {e['source']}")
             if e.get("destination"):
                 lines.append(f"     Destino: {e['destination']}")
             if e.get("reason"):
                 lines.append(f"     Motivo:  {e['reason']}")
-        filename = f"relatorio_{day}.pdf"
-        write_pdf(self.store.root / "reports" / filename, "OrganizaLocal - Relatório diário", lines)
+        write_pdf(self.store.root / "reports" / filename, "OrganizaLocal - " + title, lines)
         self.store.event("report", "ok", detail=filename, files=len(events))
         return {"filename": filename, "events": len(events), "path": str(self.store.root / "reports" / filename)}
 

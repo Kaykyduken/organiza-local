@@ -65,7 +65,7 @@ python -m unittest discover -s tests -q  # recomendado; sem instalar nada
 python -m pytest -q
 ```
 
-Hoje são **83 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
+Hoje são **92 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
 
 Não há CI automatizado configurado no repositório. Antes de abrir um pull request, rode o comando recomendado e informe o resultado. A validação do Windows é parcial até que o instalador e o fluxo de autostart sejam executados em Windows real.
 
@@ -122,7 +122,7 @@ Se ficar confuso, peça ajuda no grupo **antes** de forçar qualquer coisa. **Nu
 | API e permissões | `src/organizalocal/server.py`, `security.py` |
 | Informações do sistema (aba Sistema, conceitos de SO) | `src/organizalocal/sysinfo.py` |
 | Comandos de terminal | `src/organizalocal/cli.py` |
-| Site (telas, formulários, estilos) | `web/app.js`, `web/styles.css`, `web/index.html` |
+| Site (telas, formulários, estilos) | `web/app.js`, `web/journeys.js`, `web/workspace-views.js`, `web/styles.css`, `web/index.html` |
 | Scripts de instalação e automação | `scripts/Linux/` e `scripts/Windows/` |
 | Instaladores prontos (Setup.exe e .deb) | [Instaladores/](Instaladores/) |
 | Geração dos pacotes | [empacotamento/](empacotamento/) |
