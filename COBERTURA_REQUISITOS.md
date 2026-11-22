@@ -54,7 +54,7 @@ Este documento junta três conjuntos de requisitos:
 | RNF04 Confiabilidade | Cada falha registrada com motivo; `status` ok/partial/error; movimentação só é registrada como `ok` depois de conferir o SHA-256 ✅ |
 | RNF05 Integridade | SHA-256 antes e depois de cada movimentação; rollback se divergir ✅ |
 | RNF06 Compatibilidade | Windows 10/11 e Linux, Python 3.10+; scripts para os dois; caminhos com `pathlib`. Testado em Linux; Windows validado por análise e parse dos scripts ☑️ |
-| RNF07 Manutenibilidade | Módulos separados por responsabilidade, código comentado, 81 testes ✅ |
+| RNF07 Manutenibilidade | Módulos separados por responsabilidade, código comentado, 83 testes ✅ |
 | RNF08 Persistência | `config.json` com escrita atômica + versões da configuração ✅ |
 | RNF09 Recuperação de erros | `friendly_error`: sem permissão, destino inexistente/inválido, arquivo em uso (WinError 32), disco cheio ✅ |
 | RNF10 Segurança operacional | Política definida: renomear (padrão), revisar ou ignorar. Substituir só com confirmação, e guarda cópia antes ✅ |

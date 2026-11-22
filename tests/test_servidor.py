@@ -1,9 +1,11 @@
 """Testes da API HTTP local: token, origens (CORS), pareamento e interface estática."""
+import hashlib
 import json
 import threading
 import unittest
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from helpers import TempEnv
 from organizalocal.server import make_server
@@ -81,6 +83,18 @@ class TestServidor(TempEnv):
         self.assertEqual(status, 200)
         self.assertIn(b"OrganizaLocal", body)
         self.assertEqual(self.request("/../src/organizalocal/server.py")[0], 404)
+
+    def test_download_dos_instaladores_pelo_painel_local(self):
+        installers = Path(__file__).resolve().parents[1] / "Instaladores"
+        status, _, manifest = self.request("/downloads/SHA256SUMS.txt")
+        self.assertEqual(status, 200)
+        self.assertEqual(manifest, (installers / "SHA256SUMS.txt").read_bytes())
+        for line in manifest.decode("ascii").splitlines():
+            checksum, filename = line.split()
+            with self.subTest(filename=filename):
+                status, _, body = self.request(f"/downloads/{filename}")
+                self.assertEqual(status, 200)
+                self.assertEqual(hashlib.sha256(body).hexdigest(), checksum)
 
     def test_permissao_do_perfil(self):
         self.app.security.save_profile("Visitante", ["read"])

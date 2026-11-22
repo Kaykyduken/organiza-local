@@ -80,6 +80,7 @@ class Scheduler:
     def status(self) -> dict:
         nxt = self.next_organize()
         return {"running": bool(self.thread and self.thread.is_alive()),
+                "organizing": self.organizer.run_lock.locked(),
                 "next_organize": nxt.isoformat(timespec="minutes") if nxt else "",
                 "last_organize": self.store.config.get("last_runs", {}).get("organize", ""),
                 "check_every_seconds": CHECK_EVERY_SECONDS, "last_error": self.last_error,

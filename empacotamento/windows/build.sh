@@ -5,8 +5,8 @@
 # Requisitos: makensis (Linux: sudo apt install nsis | Windows: nsis.sourceforge.io)
 #             unzip, e o Python embutido oficial para Windows:
 #             python-3.12.10-embed-amd64.zip (baixado automaticamente de python.org,
-#             ou coloque-o em installer/windows/ antes de rodar).
-# Uso:  ./installer/windows/build.sh
+#             ou coloque-o em empacotamento/windows/ antes de rodar).
+# Uso:  bash empacotamento/windows/build.sh
 # =============================================================================
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -29,7 +29,6 @@ unzip -q "$PY_ZIP" -d build/python
 printf 'python312.zip\n.\n..\\app\n' > build/python/python312._pth
 cp -r "$REPO/src/organizalocal" build/app/organizalocal
 cp -r "$REPO/web" build/app/web
-rm -rf build/app/web/downloads                      # não embute os próprios instaladores
 find build -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 makensis -V2 -DVERSION="$VERSION" organizalocal.nsi

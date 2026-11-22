@@ -13,7 +13,7 @@
 #                                                          -> agendamento de tarefas
 #   7. Inicia o serviço em segundo plano e abre o site     -> processos
 #
-# Uso:  ./scripts/instalar.sh [--site https://seu-site.vercel.app] [--sem-autostart] [--nao-abrir]
+# Uso:  bash scripts/Linux/instalar.sh [--site https://seu-site.vercel.app] [--sem-autostart] [--nao-abrir]
 # =============================================================================
 set -euo pipefail
 
@@ -30,8 +30,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Pasta onde está este script -> raiz do repositório
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/OrganizaLocal"
 APP_DIR="$DATA_DIR/app"
 BIN_DIR="$HOME/.local/bin"
@@ -57,7 +57,12 @@ echo "==> [3/7] Copiando o programa..."
 rm -rf "$APP_DIR/organizalocal" "$APP_DIR/web"
 cp -r "$REPO_DIR/src/organizalocal" "$APP_DIR/organizalocal"
 cp -r "$REPO_DIR/web" "$APP_DIR/web"
-cp "$REPO_DIR/scripts/verificar_sistema.sh" "$REPO_DIR/scripts/backup_agora.sh" "$APP_DIR/" 2>/dev/null || true
+for package in "$REPO_DIR/Instaladores/"*.exe "$REPO_DIR/Instaladores/"*.deb "$REPO_DIR/Instaladores/SHA256SUMS.txt"; do
+  [ -f "$package" ] || continue
+  mkdir -p "$APP_DIR/web/downloads"
+  cp "$package" "$APP_DIR/web/downloads/"
+done
+cp "$SCRIPT_DIR/verificar_sistema.sh" "$SCRIPT_DIR/backup_agora.sh" "$APP_DIR/" 2>/dev/null || true
 find "$APP_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} +
 echo "    $(find "$APP_DIR" -type f | wc -l) arquivos copiados."
 
@@ -135,4 +140,4 @@ echo "Instalação concluída!"
 echo "  Pasta do aplicativo: $DATA_DIR"
 echo "  Abrir o painel:      organizalocal open"
 echo "  Ver situação:        organizalocal status"
-echo "  Desinstalar:         $REPO_DIR/scripts/desinstalar.sh"
+echo "  Desinstalar:         bash \"$SCRIPT_DIR/desinstalar.sh\""

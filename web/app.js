@@ -38,6 +38,9 @@ const UI = {                                    // estado só da interface
   sysinfo: null,
   tools: {},             // resultados das ferramentas
   simFilter: 'todos',
+  dashboardPeriod: 'total',
+  dashboardError: '',
+  organizationAction: '',
 };
 
 function safeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
@@ -57,7 +60,7 @@ async function call(command, payload = {}) {
     throw new Error('Não foi possível falar com o programa local. Ele está aberto?');
   }
   const data = await response.json().catch(() => ({}));
-  if (response.status === 401) { TOKEN = ''; sessionStorage.removeItem('ol_token'); renderPairing(); throw new Error(data.error || 'Não autorizado'); }
+  if (response.status === 401) { TOKEN = ''; S = null; sessionStorage.removeItem('ol_token'); renderPairing(); throw new Error(data.error || 'Não autorizado'); }
   if (!response.ok) throw new Error(data.error || `Erro ${response.status}`);
   return data.result;
 }
@@ -86,15 +89,16 @@ function saveBlob(blob, filename) {
 function setConnection(ok, text) {
   const el = document.getElementById('connection');
   el.className = 'pill ' + (ok ? 'ok' : 'err');
-  el.textContent = text || (ok ? '● Programa local conectado' : '● Programa local desconectado');
+  el.textContent = text || (ok ? 'Programa local conectado' : 'Programa local desconectado');
 }
 
 /** Recarrega o estado completo e redesenha a tela. */
 async function refresh() {
   S = await call('state');
+  UI.dashboardError = '';
   document.body.className = S.config.theme || 'claro';
-  setConnection(true, `● Conectado · ${S.app.platform} · perfil ${S.active_profile}`);
-  document.getElementById('navfoot').innerHTML = `Arquivos processados só no seu computador.<br>v${esc(S.app.version)} · ${IS_LOCAL ? 'interface local' : 'site publicado'}`;
+  setConnection(true, `Conectado · ${S.active_profile}`);
+  document.getElementById('navfoot').textContent = `v${S.app.version} · ${IS_LOCAL ? 'Interface local' : 'Site publicado'}`;
   render();
 }
 
@@ -155,24 +159,37 @@ function confirmBox({ title, text = '', okText = 'Confirmar', danger = false, pa
   return new Promise(resolve => {
     const needsPass = password && S?.config?.critical_password_enabled;
     const modal = $('#modal');
+    const opener = document.activeElement;
     modal.innerHTML = `<form class="box">
-        <h2>${esc(title)}</h2><div>${text}</div>${fields}
+        <h2 id="modalTitle">${esc(title)}</h2><div>${text}</div>${fields}
         ${needsPass ? '<label>Senha de operações críticas<input type="password" name="password" required autocomplete="current-password"></label>' : ''}
         <div class="row" style="justify-content:flex-end"><button type="button" data-close>Cancelar</button>
         <button class="${danger ? 'danger' : 'primary'}" type="submit">${esc(okText)}</button></div></form>`;
     modal.classList.remove('hidden');
     const form = $('form', modal);
-    const close = value => { modal.classList.add('hidden'); modal.innerHTML = ''; resolve(value); };
+    const close = value => {
+      modal.classList.add('hidden');
+      modal.innerHTML = '';
+      if (opener?.isConnected) opener.focus();
+      resolve(value);
+    };
     $('[data-close]', modal).onclick = () => close(null);
     form.onsubmit = e => { e.preventDefault(); close(Object.fromEntries(new FormData(form))); };
-    (form.querySelector('input, select, textarea') || form.querySelector('button[type=submit]')).focus();
+    (form.querySelector('input, select, textarea') || form.querySelector('[data-close]')).focus();
   });
 }
 function showModal(title, html, wide = true) {
   const modal = $('#modal');
-  modal.innerHTML = `<div class="box ${wide ? 'wide' : ''}"><div class="spread"><h2>${esc(title)}</h2><button data-close>Fechar</button></div>${html}</div>`;
+  const opener = document.activeElement;
+  modal.innerHTML = `<div class="box ${wide ? 'wide' : ''}"><div class="spread"><h2 id="modalTitle">${esc(title)}</h2><button data-close>Fechar</button></div>${html}</div>`;
   modal.classList.remove('hidden');
-  $('[data-close]', modal).onclick = () => { modal.classList.add('hidden'); modal.innerHTML = ''; };
+  const close = $('[data-close]', modal);
+  close.onclick = () => {
+    modal.classList.add('hidden');
+    modal.innerHTML = '';
+    if (opener?.isConnected) opener.focus();
+  };
+  close.focus();
 }
 
 /** Executa uma ação mostrando erro amigável e, opcionalmente, recarregando o estado. */
@@ -194,12 +211,6 @@ async function run(command, payload, { success, reload = true } = {}) {
 function header(title, subtitle, extra = '') {
   return `<div class="spread"><div><h1>${esc(title)}</h1><p class="subtitle">${subtitle}</p></div><div class="row">${extra}</div></div>`;
 }
-function bars(data, max = 8) {
-  const entries = Object.entries(data || {}).slice(0, max);
-  if (!entries.length) return empty('Sem dados ainda.');
-  const top = Math.max(...entries.map(e => e[1]));
-  return `<div class="bars">${entries.map(([k, v]) => `<div class="bar"><span title="${esc(k)}">${esc(k)}</span><div><i style="width:${(100 * v / top).toFixed(0)}%"></i></div><b>${v}</b></div>`).join('')}</div>`;
-}
 function scheduleText(sch) {
   if (!sch || sch.frequency === 'off') return 'Desligada';
   if (sch.frequency === 'interval') return `A cada ${sch.interval_minutes} minutos`;
@@ -216,38 +227,215 @@ function eventRow(e, withActions = false) {
 }
 
 /* ----- Painel ----- */
+const ICONS = {
+  painel: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  regras: '<path d="M4 6h16M4 12h16M4 18h16"/><path class="icon-knob" d="M8 4v4m7 2v4m-5 2v4"/>',
+  organizacao: '<path d="M4 8h16m-4-4 4 4-4 4m4 4H4m4-4-4 4 4 4"/>',
+  backups: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9m-9 4h4"/>',
+  historico: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  ferramentas: '<path d="m13 7 4 4 4-4a6 6 0 0 1-8 8l-5 5a2 2 0 0 1-3-3l5-5a6 6 0 0 1 8-8z"/>',
+  seguranca: '<path d="M12 3 4 6v5c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/>',
+  sistema: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+  config: '<circle cx="12" cy="12" r="3"/><path d="m10 3-.7 2.2-2.1 1.2L5 6l-2 3.5 1.5 1.7v2.5L3 15.4 5 19l2.2-.5 2.1 1.2L10 22h4l.7-2.3 2.1-1.2 2.2.5 2-3.6-1.5-1.7v-2.5L21 9.5 19 6l-2.2.4-2.1-1.2L14 3z"/>',
+  arquivo: '<path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10zM13 3v7h7m-12 5 2 2 4-4"/>',
+  revisao: '<path d="M4 5h16l2 9v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5zM2 14h6l1 2h6l1-2h6"/>',
+  pasta: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  aviso: '<path d="M10.2 4.8a2 2 0 0 1 3.6 0l7 13A1.5 1.5 0 0 1 19.5 20h-15a1.5 1.5 0 0 1-1.3-2.2zM12 9v4m0 3h.01"/>',
+  sucesso: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  simular: '<circle cx="10" cy="10" r="5"/><path d="m14 14 5 5M10 8v4m-2-2h4"/>',
+  seta: '<path d="M5 12h13m-5-5 5 5-5 5"/>',
+};
+const icon = name => `<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" class="ui-icon">${ICONS[name]}</svg>`;
+const count = new Intl.NumberFormat('pt-BR');
+const DASHBOARD_PERIODS = { today: 'Hoje', week: '7 dias', month: '30 dias', total: 'Total' };
+const dashboardLink = (tab, text, destination = '') => `<button type="button" class="dashboard-link" data-tab-go="${tab}"${destination ? ` data-jump="${destination}"` : ''}>${text}${icon('seta')}</button>`;
+
+function allowed(permission) {
+  const profile = S.config.profiles?.find(p => p.name === S.active_profile);
+  return !profile || profile.permissions.includes('*') || profile.permissions.includes(permission);
+}
+
+function dashboardMetric(symbol, label, value, description, action = '', extra = '') {
+  return `<article class="card dashboard-metric">
+    <div class="metric-top"><span class="dashboard-icon">${icon(symbol)}</span><h2>${label}</h2></div>
+    <div class="metric-value"${extra ? ' aria-live="polite"' : ''}>${value}</div>
+    <div class="metric-detail">${description}</div><div class="metric-footer">${action || extra}</div>
+  </article>`;
+}
+
+function organizationState(active, folders, last) {
+  if (S.scheduler.organizing || UI.organizationAction === 'organize') return ['Em execução', 'info'];
+  if (!folders.length) return ['Sem pastas monitoradas', 'warn'];
+  if (!active) return ['Sem regras ativas', 'warn'];
+  if (S.config.organize_schedule?.frequency === 'off') return ['Agendamento desativado', ''];
+  if (!S.scheduler.running) return ['Agendador indisponível', 'err'];
+  if (S.scheduler.last_error || last?.status === 'error') return ['Verificar falha', 'err'];
+  return ['Agendamento ativo', 'ok'];
+}
+
+function organizationResult(event) {
+  if (!event) return 'Ainda não executada';
+  if (event.status === 'error') return 'Falhou';
+  if (event.status === 'partial') return 'Concluída com falhas';
+  if (event.status === 'ok') {
+    return event.moved === 0 && !event.reviewed && !event.quarantined ? 'Sem alterações' : 'Concluída';
+  }
+  return STATUS_TEXT[event.status] || event.status || 'Resultado indisponível';
+}
+
+function organizationButtons(dashboard = false) {
+  const busy = UI.organizationAction || S.scheduler.organizing || (dashboard && UI.dashboardError);
+  const simulating = UI.organizationAction === 'simulate';
+  const organizing = UI.organizationAction === 'organize' || S.scheduler.organizing;
+  return `<button type="button" class="primary" data-act="${dashboard ? 'simulate-go' : 'simulate'}" ${busy || !allowed('analyze') ? 'disabled' : ''}>${icon('simular')}${simulating ? 'Simulando…' : 'Simular organização'}</button>
+    <button type="button" data-act="organize" ${busy || !allowed('organize') ? 'disabled' : ''}>${organizing ? 'Organizando…' : 'Organizar agora'}</button>
+    ${simulating || organizing ? `<span class="sr-only" role="status">${simulating ? 'Simulação em andamento.' : 'Organização em andamento.'}</span>` : ''}`;
+}
+
+function dashboardAlerts(active, folders, lastOrganization, lastBackup) {
+  const alerts = [];
+  const add = (kind, title, detail, tab = '', action = '', destination = '') =>
+    alerts.push({ kind, title, detail, tab, action, destination });
+  if (S.scheduler.last_error) add('err', 'Falha no agendador', S.scheduler.last_error, 'historico', 'Ver histórico');
+  else if (!S.scheduler.running && S.config.organize_schedule?.frequency !== 'off') {
+    add('err', 'Agendador indisponível', 'O serviço local está conectado, mas o agendador está parado.', 'sistema', 'Ver sistema');
+  }
+  if (lastOrganization?.status === 'error' || lastOrganization?.status === 'partial') {
+    add(lastOrganization.status === 'error' ? 'err' : 'warn', 'A última organização registrou falhas',
+      lastOrganization.reason || (lastOrganization.failures ? `${lastOrganization.failures} arquivo(s) com falha.` : 'Consulte o resultado no histórico.'),
+      'historico', 'Ver histórico');
+  }
+  if (lastBackup?.status === 'error' && S.backup_jobs.length) {
+    add('err', 'O último backup falhou', [lastBackup.detail, lastBackup.reason].filter(Boolean).join(' · '), 'backups', 'Ver backups');
+  }
+  if (!active) add('warn', 'Nenhuma regra ativa', S.rules.length ? 'Ative uma regra existente ou crie uma nova.' : 'Crie uma regra para definir quais arquivos organizar.', 'regras', 'Configurar regras');
+  if (!folders.length) add('warn', 'Nenhuma pasta monitorada', 'Adicione as pastas que deseja organizar.', 'config', 'Configurar pastas', 'scheduleSettings');
+  for (const p of S.problems) {
+    const folder = p.kind === 'watch_dir' || p.rule === 'Pastas monitoradas';
+    add('warn', p.rule, p.error, folder ? 'config' : 'regras', folder ? 'Configurar pastas' : 'Ver regras', folder ? 'scheduleSettings' : '');
+  }
+  for (const a of S.alerts) {
+    add(a.severity === 'excedido' ? 'err' : 'warn',
+      a.severity === 'excedido' ? 'Limite de armazenamento excedido' : 'Próximo do limite de armazenamento',
+      `${a.path || a.category || 'Pastas monitoradas'} · ${bytes(a.bytes)} de ${bytes(a.max_bytes)}`, 'ferramentas', 'Ver limites', 'storageLimits');
+  }
+  for (const d of S.due_documents) {
+    const deadline = d.days_remaining < 0 ? `Venceu há ${-d.days_remaining} dia(s)` : d.days_remaining === 0 ? 'Vence hoje' : `Vence em ${d.days_remaining} dia(s)`;
+    add(d.days_remaining < 0 ? 'err' : 'warn', deadline, d.description || d.file, 'ferramentas', 'Ver vencimentos', 'dueDocuments');
+  }
+  if (S.review.length) add('warn', 'Arquivos aguardando revisão', `${count.format(S.review.length)} na fila`, 'organizacao', 'Ver revisão', 'reviewQueue');
+  if (S.quarantine.length) add('info', 'Arquivos na quarentena', `${count.format(S.quarantine.length)} isolado(s)`, 'seguranca', 'Ver quarentena', 'quarantineList');
+  if (!S.backup_jobs.length) add('info', 'Backup a configurar', 'Escolha as pastas que deseja copiar periodicamente.', 'backups', 'Configurar backup');
+  const order = { err: 0, warn: 1, info: 2 };
+  return alerts.sort((a, b) => order[a.kind] - order[b.kind]);
+}
+
+function dashboardAlert(a) {
+  return `<li class="dashboard-alert ${a.kind}"><span class="alert-icon">${icon(a.kind === 'info' ? 'historico' : 'aviso')}</span>
+    <div><span class="sr-only">${{ err: 'Erro', warn: 'Atenção', info: 'Informação' }[a.kind]}: </span><strong>${esc(a.title)}</strong>
+      ${a.detail ? `<p>${esc(a.detail)}</p>` : ''}${a.tab ? dashboardLink(a.tab, a.action, a.destination) : ''}</div></li>`;
+}
+
+function dashboardActivity() {
+  const timestamp = event => Date.parse(event.timestamp) || 0;
+  const entries = [...S.latest].sort((a, b) => timestamp(b) - timestamp(a)).slice(0, 10);
+  if (!entries.length) return `<div class="dashboard-empty"><span class="dashboard-icon">${icon('historico')}</span><div><strong>Ainda não há atividade registrada</strong><p>As movimentações, backups e alterações de configuração aparecerão aqui.</p></div></div>`;
+  return `<ul class="activity-list" aria-label="Eventos recentes">${entries.map(event => {
+    const file = event.source?.split(/[\\/]/).pop();
+    const organization = event.operation === 'organize';
+    const title = file || event.detail || (organization ? organizationResult(event) : OPS[event.operation] || event.operation);
+    const details = [event.rule_name ? `Regra: ${event.rule_name}` : '', event.reason,
+      organization && event.moved !== undefined ? `${event.moved} movido(s) · ${event.reviewed || 0} em revisão · ${event.failures || 0} falha(s)` : ''].filter(Boolean);
+    const status = organization ? organizationResult(event) :
+      event.operation === 'review_decision' && event.detail === 'ignore' ? 'Ignorado' :
+        ({ ok: 'Concluído', partial: 'Com ressalvas', error: 'Falhou', pending: 'Pendente', unchanged: 'Sem mudanças', detected: 'Detectado' }[event.status] || event.status);
+    const canUndo = allowed('restore') && ['move', 'review', 'rename'].includes(event.operation)
+      && event.status === 'ok' && event.source && event.destination && event.sha256
+      && !S.latest.some(item => item.operation === 'undo_reference' && item.reference === event.id);
+    return `<li class="activity-row">
+      <time datetime="${esc(event.timestamp)}">${when(event.timestamp)}</time>
+      <div class="activity-detail"><strong title="${esc(event.source || title)}">${esc(title)}</strong>${details.length ? `<small>${esc(details.join(' · '))}</small>` : ''}</div>
+      <span class="activity-operation">${esc(OPS[event.operation] || event.operation)}</span>
+      <div class="activity-result">${badge(status, STATUS_BADGE[event.status])}
+        ${canUndo && !UI.dashboardError ? `<button type="button" class="dashboard-link" data-act="undo" data-id="${esc(event.id)}" aria-label="Desfazer ${esc(file || title)}">Desfazer</button>` : ''}</div>
+    </li>`;
+  }).join('')}</ul>`;
+}
+
+function dashboardDistribution(label, data) {
+  const entries = Object.entries(data || {}).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (!entries.length) return '';
+  return `<div class="dashboard-distribution"><h3>${label}</h3><ul>${entries.map(([name, value]) => `<li>
+    <span title="${esc(name)}">${esc(name)}</span><b>${count.format(value)}</b>
+    <div class="meter" aria-hidden="true"><i style="width:${100 * value / entries[0][1]}%"></i></div>
+  </li>`).join('')}</ul></div>`;
+}
+
 function viewPainel() {
-  const st = S.stats, sch = S.scheduler;
+  const { stats, scheduler: sch } = S;
   const active = S.rules.filter(r => r.enabled).length;
-  const alerts = [
-    ...S.problems.map(p => `<div class="notice warn"><b>${esc(p.rule)}:</b> ${esc(p.error)}</div>`),
-    ...S.alerts.map(a => `<div class="notice err">Limite ${esc(a.severity)}: ${esc(a.path || a.category)} — ${bytes(a.bytes)} de ${bytes(a.max_bytes)}</div>`),
-    ...S.due_documents.map(d => `<div class="notice ${d.days_remaining < 0 ? 'err' : 'warn'}">Vencimento: ${esc(d.description || d.file)} — ${d.days_remaining < 0 ? `venceu há ${-d.days_remaining} dia(s)` : `em ${d.days_remaining} dia(s)`}</div>`),
-  ];
-  if (!active) alerts.unshift('<div class="notice">Nenhuma regra ativa. As regras de exemplo vêm <b>desativadas</b>: revise-as na aba Regras e ative as que quiser.</div>');
-  return `${header('Painel', 'Resumo da organização automática e dos backups.')}
-  <div class="grid g4">
-    <div class="card stat"><small>Arquivos organizados</small><b>${st.moves}</b><small>${bytes(st.moved_bytes)} movidos</small></div>
-    <div class="card stat"><small>Regras ativas</small><b>${active} / ${S.rules.length}</b><small>${S.problems.length} aviso(s)</small></div>
-    <div class="card stat"><small>Versões de backup</small><b>${st.backup_versions}</b><small>${bytes(st.backup_bytes)} em disco</small></div>
-    <div class="card stat"><small>Aguardando revisão</small><b>${st.pending_review}</b><small>${S.quarantine.length} na quarentena</small></div>
-  </div>
-  <div class="grid g2">
-    <div class="card"><h2>Situação</h2>
-      <p><b>Pastas monitoradas:</b><br>${S.config.watch_dirs.map(d => `<code>${esc(d)}</code>`).join('<br>') || '<span class="muted">nenhuma</span>'}</p>
-      <p><b>Organização automática:</b> ${esc(scheduleText(S.config.organize_schedule))}<br>
-      <b>Última:</b> ${when(sch.last_organize)} · <b>Próxima:</b> ${when(sch.next_organize)}</p>
-      <p><b>Backups:</b> ${S.backup_jobs.length ? S.backup_jobs.map(j => `${esc(j.name)} (${j.versions.length}/${j.max_versions} versões)`).join(', ') : 'nenhuma regra de backup'}</p>
-      <div class="row"><button class="primary" data-act="simulate-go">Simular organização</button><button data-act="organize">Organizar agora</button></div>
+  const folders = S.config.watch_dirs;
+  const last = stats.last_organization ?? S.latest.find(e => e.operation === 'organize');
+  const lastBackup = stats.last_backup ?? S.latest.find(e => e.operation === 'backup');
+  const lastBackupSuccess = stats.last_backup_success || S.latest.find(e => e.operation === 'backup' && e.status === 'ok')?.timestamp;
+  const alerts = dashboardAlerts(active, folders, last, lastBackup);
+  const [state, kind] = organizationState(active, folders, last);
+  const configurationPending = !active || !folders.length || !S.backup_jobs.length;
+  const needsAttention = alerts.some(a => a.kind !== 'info' && !(a.title === 'Nenhuma regra ativa' || a.title === 'Nenhuma pasta monitorada')) || kind === 'err';
+  const overall = UI.dashboardError ? badge('Dados desatualizados', 'warn') : needsAttention ? badge('Atenção necessária', 'warn') :
+    configurationPending ? badge('Configuração pendente', 'info') : badge('Tudo em ordem', 'ok');
+  const movement = stats.movement_periods?.[UI.dashboardPeriod] || stats;
+  const periodControl = stats.movement_periods ? `<select id="dashboardPeriod" aria-label="Período dos arquivos organizados">${Object.entries(DASHBOARD_PERIODS).map(([key, label]) => `<option value="${key}"${key === UI.dashboardPeriod ? ' selected' : ''}>${label}</option>`).join('')}</select>` : '';
+  const ruleIssues = new Set(S.problems.filter(p => p.kind === 'rule' || !p.kind).map(p => p.rule_id || p.rule)).size;
+  const nextExecution = sch.running && sch.next_organize
+    ? (new Date(sch.next_organize) <= new Date(S.timestamp) ? 'Aguardando execução' : when(sch.next_organize))
+    : 'Sem execução programada';
+  const distributions = dashboardDistribution('Por categoria', stats.by_category) + dashboardDistribution('Por regra', stats.by_rule);
+  const backupDetail = stats.backup_versions ? `${bytes(stats.backup_bytes)} em disco` :
+    S.backup_jobs.length ? 'Nenhuma versão criada' : 'Nenhuma regra de backup';
+  return `<div class="dashboard">
+    <header class="dashboard-heading"><div><h1>Visão geral</h1><p>Organização, backups e atividade deste computador.</p></div><div class="dashboard-status">${overall}</div></header>
+    ${UI.dashboardError ? `<div class="dashboard-read-error" role="alert"><div><strong>Não foi possível atualizar o painel</strong><p>${esc(UI.dashboardError)}</p></div><button type="button" data-act="retry">Tentar novamente</button></div>` : ''}
+    <section class="dashboard-metrics" aria-label="Indicadores">
+      ${dashboardMetric('arquivo', 'Arquivos organizados', count.format(movement.moves), `${bytes(movement.moved_bytes)} movidos`, '', periodControl)}
+      ${dashboardMetric('regras', 'Regras ativas', `${count.format(active)} <small>de ${count.format(S.rules.length)}</small>`,
+        `${count.format(S.rules.length - active)} ${S.rules.length - active === 1 ? 'desativada' : 'desativadas'}${ruleIssues ? ` · <span class="dashboard-warning">${count.format(ruleIssues)} com erro</span>` : ''}`, dashboardLink('regras', 'Ver regras'))}
+      ${dashboardMetric('backups', 'Backups', `${count.format(stats.backup_versions)} <small>${stats.backup_versions === 1 ? 'versão' : 'versões'}</small>`,
+        backupDetail + (lastBackupSuccess ? `<br>Último sucesso: ${when(lastBackupSuccess)}` : ''), dashboardLink('backups', 'Ver backups'))}
+      ${dashboardMetric('revisao', 'Aguardando revisão', count.format(S.review.length), `${count.format(S.quarantine.length)} na quarentena`,
+        dashboardLink('organizacao', 'Ver fila', 'reviewQueue'))}
+    </section>
+    <div class="dashboard-columns">
+      <section class="card dashboard-panel dashboard-automation" aria-labelledby="automationTitle">
+        <div class="dashboard-panel-heading"><div class="dashboard-panel-title"><span class="dashboard-icon">${icon('organizacao')}</span><h2 id="automationTitle">Organização automática</h2></div>${badge(state, kind)}</div>
+        <dl class="automation-grid">
+          <div><dt>Pastas monitoradas</dt><dd>${count.format(folders.length)} ${folders.length === 1 ? 'pasta' : 'pastas'}</dd>
+            ${folders.length ? `<dd class="folder-summary">${folders.slice(0, 2).map(path => `<span title="${esc(path)}">${esc(path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path)}</span>`).join('')}${folders.length > 2 ? `<span>+${folders.length - 2}</span>` : ''}</dd>` : ''}</div>
+          <div><dt>Agendamento</dt><dd>${esc(scheduleText(S.config.organize_schedule))}</dd>${dashboardLink('config', 'Ver pastas e agenda', 'scheduleSettings')}</div>
+          <div><dt>Última execução</dt><dd>${esc(organizationResult(last))}</dd>${last?.timestamp ? `<dd class="automation-date">${when(last.timestamp)}</dd>` : ''}</div>
+          <div><dt>Próxima execução</dt><dd>${nextExecution}</dd></div>
+        </dl>
+        <div class="automation-actions">${organizationButtons(true)}<span>Simular não move nem altera arquivos.</span></div>
+        ${!allowed('analyze') || !allowed('organize') ? '<p class="automation-restriction">Algumas ações estão indisponíveis para o perfil atual.</p>' : ''}
+      </section>
+      <div class="dashboard-details">
+        <section class="card dashboard-panel dashboard-notices" aria-labelledby="noticesTitle">
+          <div class="dashboard-panel-heading"><h2 id="noticesTitle">Alertas e avisos</h2>${alerts.length ? badge(count.format(alerts.length)) : ''}</div>
+          ${alerts.length ? `<ul class="dashboard-alerts">${alerts.slice(0, 2).map(dashboardAlert).join('')}</ul>${alerts.length > 2 ? `<details class="more-alerts"><summary>Ver mais ${alerts.length - 2} aviso(s)</summary><ul class="dashboard-alerts">${alerts.slice(2).map(dashboardAlert).join('')}</ul></details>` : ''}` :
+            `<div class="dashboard-empty"><span class="dashboard-icon positive">${icon('sucesso')}</span><div><strong>Nenhum aviso no momento</strong></div></div>`}
+        </section>
+        <section class="card dashboard-panel dashboard-breakdown" aria-labelledby="breakdownTitle">
+          <div class="dashboard-panel-heading"><h2 id="breakdownTitle">Arquivos por categoria e regra</h2></div>
+          ${distributions ? `<p class="breakdown-period">Histórico completo</p>${distributions}` :
+            `<div class="dashboard-empty"><span class="dashboard-icon">${icon('pasta')}</span><div><strong>Nenhum arquivo organizado</strong><p>As categorias e regras aparecem após a primeira movimentação.</p></div></div>`}
+        </section>
+      </div>
+      <section class="card dashboard-panel dashboard-activity" aria-labelledby="activityTitle">
+        <div class="dashboard-panel-heading"><h2 id="activityTitle">Atividade recente</h2>${dashboardLink('historico', 'Ver histórico completo')}</div>
+        ${UI.dashboardError ? '<p class="activity-error">Não foi possível atualizar a atividade. Abaixo estão os últimos dados recebidos.</p>' : ''}
+        ${dashboardActivity()}
+      </section>
     </div>
-    <div class="card"><h2>Alertas e avisos</h2>${alerts.join('') || empty('Tudo certo por aqui.')}</div>
-  </div>
-  <div class="grid g2">
-    <div class="card"><h2>Organizados por categoria</h2>${bars(st.by_category)}</div>
-    <div class="card"><h2>Organizados por regra</h2>${bars(st.by_rule)}</div>
-  </div>
-  <div class="card"><div class="spread"><h2>Atividade recente</h2><button data-tab-go="historico">Ver histórico completo</button></div>
-    ${S.latest.length ? `<div class="table-wrap"><table><thead><tr><th>Data</th><th>Operação</th><th>Status</th><th>Arquivo / detalhe</th><th>Regra</th></tr></thead><tbody>${S.latest.slice(0, 12).map(e => eventRow(e)).join('')}</tbody></table></div>` : empty('Nenhuma atividade registrada.')}
   </div>`;
 }
 
@@ -413,14 +601,14 @@ function viewOrganizacao() {
   const filters = ['todos', 'move', 'conflict', 'exception', 'tie', 'suspicious', 'quarantine', 'no_match', 'busy'];
   const rows = sim ? sim.rows.filter(r => UI.simFilter === 'todos' || r.action === UI.simFilter || (UI.simFilter === 'move' && r.action === 'default')) : [];
   const policy = { rename: 'salvar com nome numerado', review: 'enviar para revisão', skip: 'ignorar' }[S.config.conflict_policy];
-  const simHtml = sim ? `<div class="card"><div class="spread"><h2>Simulação ${sim.only_rule_name ? `da regra "${esc(sim.only_rule_name)}"` : ''} — ${when(sim.timestamp)}</h2>
+  const simHtml = sim ? `<div class="card"><div class="spread"><h2 id="simulationResult" tabindex="-1">Simulação ${sim.only_rule_name ? `da regra "${esc(sim.only_rule_name)}"` : ''} — ${when(sim.timestamp)}</h2>
       <div class="row"><select id="simFilter">${filters.map(f => `<option value="${f}" ${f === UI.simFilter ? 'selected' : ''}>${f === 'todos' ? 'Todos' : esc(S.action_labels[f])}</option>`).join('')}</select><button data-act="sim-export">Exportar JSON</button></div></div>
       <p class="notice">Nada foi movido. ${sim.count} arquivo(s) analisado(s); <b>${sim.would_move}</b> seriam movidos. ${Object.entries(sim.summary).filter(([, v]) => v).map(([k, v]) => badge(`${S.action_labels[k]}: ${v}`, ACTION_KIND[k])).join(' ')}</p>
       ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Resultado previsto</th><th>Regra</th><th>Destino previsto</th><th>Observação</th></tr></thead><tbody>
       ${rows.map(r => `<tr><td class="path">${esc(r.name)}<br><span class="small muted">${esc(S.format_labels[r.format] || r.format || '')} · ${bytes(r.bytes)}</span></td><td>${badge(S.action_labels[r.action] || r.action, ACTION_KIND[r.action])}</td>
         <td>${esc(r.rule_name || '')}${r.matched && r.matched.length > 1 ? `<br><span class="small muted">correspondem: ${r.matched.map(m => `${esc(m.name)} (${m.priority})`).join(', ')}</span>` : ''}</td>
         <td class="path small">${esc(r.destination || '')}</td><td class="small">${esc(r.reason || '')}</td></tr>`).join('')}</tbody></table></div>` : empty('Nenhum arquivo neste filtro.')}</div>` : '';
-  const resHtml = res ? `<div class="card"><div class="spread"><h2>Resultado da organização — ${when(res.finished)}</h2>${statusBadge(res.status)}</div>
+  const resHtml = res ? `<div class="card"><div class="spread"><h2 id="organizationResult" tabindex="-1">Resultado da organização — ${when(res.finished)}</h2>${statusBadge(res.status)}</div>
       <div class="grid g4"><div class="stat"><small>Movidos</small><b>${res.moved}</b></div><div class="stat"><small>Para revisão</small><b>${res.reviewed}</b></div>
       <div class="stat"><small>Falhas</small><b style="color:${res.errors.length ? 'var(--err)' : 'inherit'}">${res.errors.length}</b></div><div class="stat"><small>Ignorados / quarentena</small><b>${res.skipped} / ${res.quarantined}</b></div></div>
       ${res.errors.length ? `<h3>Arquivos que não puderam ser movidos</h3><div class="table-wrap"><table><thead><tr><th>Arquivo</th><th>Motivo</th></tr></thead><tbody>${res.errors.map(e => `<tr><td class="path">${esc(e.file)}</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -430,10 +618,10 @@ function viewOrganizacao() {
     <td><div class="row">${r.destination ? `<button class="icon" data-act="rev" data-id="${r.id}" data-d="rename">Mover com novo nome</button><button class="icon danger" data-act="rev" data-id="${r.id}" data-d="replace">Substituir</button>` : ''}
     <button class="icon" data-act="rev" data-id="${r.id}" data-d="move">Escolher pasta…</button><button class="icon" data-act="rev" data-id="${r.id}" data-d="quarantine">Quarentena</button><button class="icon ghost" data-act="rev" data-id="${r.id}" data-d="ignore">Ignorar</button></div></td></tr>`).join('')}</tbody></table></div>` : empty('Nenhum arquivo aguardando decisão.');
   return `${header('Organização', `Pastas: ${S.config.watch_dirs.map(esc).join(', ') || 'nenhuma'} · Arquivo já existente no destino: <b>${esc(policy)}</b> (altere em Configurações).`,
-    '<button class="primary" data-act="simulate">Simular (não move nada)</button><button data-act="organize">Organizar agora</button>')}
+    organizationButtons())}
     ${resHtml}${simHtml}
     ${!sim && !res ? '<div class="card"><p>Use <b>Simular</b> para ver, sem mover nada, quais arquivos correspondem às regras e para onde iriam. Depois clique em <b>Organizar agora</b> — ou espere a organização automática.</p></div>' : ''}
-    <div class="card"><h2>Fila de revisão (${S.review.length})</h2><p class="small muted">Arquivos com empate de prioridade ou com nome já existente no destino (quando a política é "revisão").</p>${review}</div>`;
+    <div class="card"><h2 id="reviewQueue" tabindex="-1">Fila de revisão (${S.review.length})</h2><p class="small muted">Arquivos com empate de prioridade ou com nome já existente no destino (quando a política é "revisão").</p>${review}</div>`;
 }
 
 /* ----- Backups ----- */
@@ -523,8 +711,8 @@ function viewFerramentas() {
     <div class="card"><h2>Relatórios</h2><div class="form"><label>Dia<input id="repDay" type="date" value="${new Date().toISOString().slice(0, 10)}"></label></div><div class="row" style="margin-top:8px"><button data-act="report">Gerar e baixar PDF</button></div></div>
     <div class="card"><h2>Versões de um arquivo nos backups</h2><div class="form"><label class="full">Caminho original do arquivo<input id="fhPath"></label></div><button style="margin-top:8px" data-act="file-history">Procurar</button>${toolResult('filehistory')}</div>
     <div class="card"><h2>Armazenamento</h2><p class="small muted">Mede o espaço ocupado pelas pastas monitoradas (também feito automaticamente a cada hora).</p><div class="row"><button data-act="storage-now">Medir agora</button><button data-act="storage-hist">Ver medições</button></div>${toolResult('storage')}
-      <h3>Limites de espaço (aviso ao chegar em 90%)</h3>${listEditor('limits', [{ key: 'path', label: 'Pasta (vazio = monitoradas)' }, { key: 'category', label: 'Categoria (opcional)' }, { key: 'max_mb', label: 'Máximo (MB)', type: 'number' }], S.config.limits)}</div>
-    <div class="card"><h2>Vencimentos de documentos</h2><p class="small muted">Avisa no painel 30 dias antes.</p>${listEditor('due_dates', [{ key: 'description', label: 'Descrição' }, { key: 'file', label: 'Arquivo (opcional)' }, { key: 'due', label: 'Vence em', type: 'date' }], S.config.due_dates)}</div>
+      <h3 id="storageLimits" tabindex="-1">Limites de espaço (aviso ao chegar em 90%)</h3>${listEditor('limits', [{ key: 'path', label: 'Pasta (vazio = monitoradas)' }, { key: 'category', label: 'Categoria (opcional)' }, { key: 'max_mb', label: 'Máximo (MB)', type: 'number' }], S.config.limits)}</div>
+    <div class="card"><h2 id="dueDocuments" tabindex="-1">Vencimentos de documentos</h2><p class="small muted">Avisa no painel 30 dias antes.</p>${listEditor('due_dates', [{ key: 'description', label: 'Descrição' }, { key: 'file', label: 'Arquivo (opcional)' }, { key: 'due', label: 'Vence em', type: 'date' }], S.config.due_dates)}</div>
     <div class="card"><h2>Projetos</h2><p class="small muted">Uma regra ligada a um projeto envia os arquivos para a pasta do projeto.</p>${listEditor('projects', [{ key: 'name', label: 'Nome' }, { key: 'directory', label: 'Pasta (caminho completo)' }], S.config.projects)}</div>
     <div class="card"><h2>Categorias personalizadas</h2><p class="small muted">Prontas: ${Object.keys(S.categories_builtin).map(esc).join(', ')}.</p>${listEditor('categories', [{ key: 'name', label: 'Categoria' }, { key: 'exts', label: 'Extensões', ph: '.psd, .ai' }], cats)}</div>
     <div class="card"><h2>Observações</h2><form id="noteForm" class="form"><label>Tipo<select name="type"><option value="file">Arquivo</option><option value="rule">Regra</option><option value="operation">Operação</option><option value="backup">Backup</option></select></label><label class="two">Referência (caminho, nome da regra…)<input name="ref"></label><label class="full">Texto<textarea name="text" required></textarea></label><div><button class="primary">Salvar observação</button></div></form>
@@ -537,7 +725,7 @@ function viewSeguranca() {
   const c = S.config;
   return `${header('Segurança', 'Quarentena, proteções, exclusões, perfis com PIN, senha para operações críticas e pareamento.')}
   <div class="grid g2">
-    <div class="card"><h2>Quarentena (${S.quarantine.length})</h2><p class="small muted">Arquivos suspeitos ficam isolados na pasta de dados e nunca são executados.</p>
+    <div class="card"><h2 id="quarantineList" tabindex="-1">Quarentena (${S.quarantine.length})</h2><p class="small muted">Arquivos suspeitos ficam isolados na pasta de dados e nunca são executados.</p>
       <label class="check"><input type="checkbox" id="qAuto" ${c.quarantine_risky ? 'checked' : ''}> Enviar automaticamente executáveis e arquivos com extensão disfarçada para a quarentena</label>
       ${S.quarantine.length ? `<div class="table-wrap" style="margin-top:8px"><table><tbody>${S.quarantine.map(q => `<tr><td class="path">${esc(q.name)}<br><span class="small muted">${esc(q.format)} · ${bytes(q.bytes)}</span></td><td><div class="row"><button class="icon" data-act="q-release" data-name="${esc(q.name)}">Liberar…</button><button class="icon danger" data-act="q-delete" data-name="${esc(q.name)}">Apagar</button></div></td></tr>`).join('')}</tbody></table></div>` : empty('Quarentena vazia.')}</div>
     <form class="card" id="protForm"><h2>Proteções e exclusões</h2>
@@ -583,7 +771,7 @@ function viewConfig() {
   const c = S.config, sch = c.organize_schedule;
   const days = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
   return `${header('Configurações', `Salvas em <code>${esc(S.app.data_dir)}</code>. Cada alteração gera uma versão da configuração.`)}
-  <form class="card" id="configForm"><h2>Organização automática</h2><div class="form">
+  <form class="card" id="configForm"><h2 id="scheduleSettings" tabindex="-1">Organização automática</h2><div class="form">
     <label class="full">Pastas monitoradas (uma por linha) — padrão: Downloads<textarea name="watch_dirs">${esc(c.watch_dirs.join('\n'))}</textarea></label>
     <label>Frequência<select name="frequency">${[['interval', 'A cada X minutos'], ['daily', 'Diária'], ['weekly', 'Semanal'], ['off', 'Desligada']].map(([v, t]) => `<option value="${v}" ${sch.frequency === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label>Intervalo (minutos) — padrão 60<input name="interval_minutes" type="number" min="1" value="${sch.interval_minutes}"></label>
@@ -611,14 +799,49 @@ const VIEWS = { painel: viewPainel, regras: viewRegras, organizacao: viewOrganiz
 
 function render() {
   if (!S) return;
-  $$('#nav button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === TAB));
-  $('#main').innerHTML = VIEWS[TAB]();
+  if (!Object.hasOwn(VIEWS, TAB)) TAB = 'painel';
+  $$('#nav button[data-tab]').forEach(b => {
+    const active = b.dataset.tab === TAB;
+    b.classList.toggle('active', active);
+    if (active) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  const main = $('#main');
+  const activeHeading = main.dataset.view === TAB && main.contains(document.activeElement) && document.activeElement.matches('h1, h2[tabindex]');
+  const headingId = activeHeading && document.activeElement.id;
+  const moreAlertsOpen = TAB === 'painel' && main.querySelector('.more-alerts')?.open;
+  main.dataset.view = TAB;
+  main.innerHTML = VIEWS[TAB]();
+  if (moreAlertsOpen && main.querySelector('.more-alerts')) main.querySelector('.more-alerts').open = true;
+  main.querySelector('h1')?.setAttribute('tabindex', '-1');
+  if (activeHeading) (headingId ? document.getElementById(headingId) : main.querySelector('h1'))?.focus({ preventScroll: true });
   if (TAB === 'historico' && UI.history === null) act('history-load');
+}
+
+function dashboardPlaceholder(error = '') {
+  const main = $('#main');
+  main.dataset.view = 'painel';
+  main.innerHTML = `<div class="dashboard"><header class="dashboard-heading"><div><h1>Visão geral</h1><p>Organização, backups e atividade deste computador.</p></div></header>
+    ${error ? `<section class="card dashboard-load" role="alert"><span class="dashboard-icon">${icon('aviso')}</span><div><h2>Não foi possível carregar o painel</h2><p>${esc(error)}</p><button type="button" data-act="retry">Tentar novamente</button></div></section>` :
+      '<section class="card dashboard-load" role="status"><span class="dashboard-spinner" aria-hidden="true"></span><div><h2>Carregando o painel…</h2><p>Buscando indicadores e atividade recente.</p></div></section>'}</div>`;
+}
+
+function readError(error) {
+  if (!TOKEN) return;
+  if (S && TAB !== 'painel') return toast(error.message, true);
+  UI.dashboardError = error.message;
+  if (S) render();
+  else {
+    TAB = 'painel';
+    dashboardPlaceholder(error.message);
+  }
 }
 
 /* ----- Telas de conexão ----- */
 function renderOffline() {
   setConnection(false);
+  S = null;
+  $('#main').removeAttribute('data-view');
   $('#main').innerHTML = `<section class="card"><h1>O programa local não está aberto</h1>
     <p>Este site só mostra e controla o OrganizaLocal que roda no <b>seu computador</b>. Nenhum arquivo é enviado para a internet.</p>
     <ol><li><b>Windows:</b> clique no atalho <b>OrganizaLocal</b> da Área de Trabalho ou do Menu Iniciar.</li>
@@ -634,7 +857,8 @@ function renderOffline() {
     Linux: dois cliques no .deb ou <code>sudo apt install ./organizalocal_1.0.0_all.deb</code>.</p></section>`;
 }
 function renderPairing() {
-  setConnection(false, '● Aguardando pareamento');
+  setConnection(false, 'Aguardando pareamento');
+  $('#main').removeAttribute('data-view');
   $('#main').innerHTML = `<form class="card" id="pairForm" style="max-width:520px"><h1>Conectar ao programa</h1>
     <p>Abra o site pelo <b>atalho do OrganizaLocal</b> para entrar automaticamente, ou digite o código de 6 dígitos exibido por <code>organizalocal codigo</code> (ou no terminal do serviço).</p>
     <label>Código de pareamento<input name="code" inputmode="numeric" maxlength="6" required autofocus></label>
@@ -644,30 +868,57 @@ function renderPairing() {
 /* ---------------------------------------------------------------------------
    4. AÇÕES
    --------------------------------------------------------------------------- */
+async function runOrganization(command, ruleId = '') {
+  if (UI.organizationAction || !S) return;
+  const sourceTab = TAB;
+  UI.organizationAction = command;
+  let focusTarget = '';
+  let rendered = false;
+  try {
+    if (command === 'organize') {
+      const ok = await confirmBox({ title: 'Organizar agora?', text: 'A organização aplicará as regras e opções configuradas. Os arquivos poderão ser movidos. Você pode simular primeiro para conferir os destinos.', okText: 'Organizar' });
+      if (!ok) return;
+    }
+    render();
+    rendered = true;
+    const result = await call(command, ruleId ? { only_rule: ruleId } : {});
+    if (command === 'simulate') {
+      if (ruleId) result.only_rule_name = S.rules.find(r => r.id === ruleId)?.name;
+      UI.simulation = result;
+      UI.simFilter = ruleId ? 'move' : 'todos';
+      focusTarget = '#simulationResult';
+      toast('Simulação concluída.');
+    } else {
+      UI.lastRun = result;
+      UI.simulation = null;
+      focusTarget = '#organizationResult';
+      toast(result.status === 'error' ? 'A organização falhou. Consulte o resultado.' :
+        result.errors.length ? `Organização concluída com ${result.errors.length} falha(s).` : `${result.moved} arquivo(s) organizado(s).`,
+        result.status === 'error');
+      await refresh().catch(readError);
+    }
+    if (TAB === sourceTab) {
+      TAB = 'organizacao';
+      safeSet('ol_tab', TAB);
+    }
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    UI.organizationAction = '';
+    if (rendered && S) render();
+    if (focusTarget && TAB === 'organizacao') $(focusTarget)?.focus();
+  }
+}
+
 async function act(name, el = {}) {
   const d = el.dataset || {};
   switch (name) {
     case 'retry': return start();
     /* Organização */
-    case 'simulate-go': TAB = 'organizacao'; safeSet('ol_tab', TAB); render(); return act('simulate');
-    case 'simulate': {
-      const r = await run('simulate', {}, { reload: false });
-      if (r) { UI.simulation = r; UI.simFilter = 'todos'; render(); }
-      return;
-    }
-    case 'rule-test': {
-      const rule = S.rules.find(r => r.id === d.id);
-      const r = await run('simulate', { only_rule: d.id }, { reload: false });
-      if (r) { r.only_rule_name = rule?.name; UI.simulation = r; UI.simFilter = 'move'; TAB = 'organizacao'; render(); }
-      return;
-    }
-    case 'organize': {
-      const ok = await confirmBox({ title: 'Organizar agora?', text: 'As regras <b>ativas</b> serão aplicadas e os arquivos serão <b>movidos de verdade</b>. Dica: simule antes.', okText: 'Organizar' });
-      if (!ok) return;
-      const r = await run('organize', {}, { success: x => x.errors.length ? `Concluído com ${x.errors.length} falha(s).` : `${x.moved} arquivo(s) organizado(s).` });
-      if (r) { UI.lastRun = r; UI.simulation = null; TAB = 'organizacao'; render(); }
-      return;
-    }
+    case 'simulate-go':
+    case 'simulate': return runOrganization('simulate');
+    case 'rule-test': return runOrganization('simulate', d.id);
+    case 'organize': return runOrganization('organize');
     case 'sim-export': { const r = await run('simulate_export', {}, { reload: false }); if (r) download('exports', r.filename); return; }
     case 'rev': {
       const payload = { id: d.id, decision: d.d };
@@ -752,7 +1003,7 @@ async function act(name, el = {}) {
     /* Histórico */
     case 'history-load': UI.history = await run('history', { filters: UI.historyFilters, limit: 500 }, { reload: false }) || []; if (TAB === 'historico') render(); return;
     case 'undo': {
-      const ok = await confirmBox({ title: 'Desfazer movimentação?', text: 'O arquivo voltará para a pasta de origem (se não tiver sido alterado depois).', okText: 'Desfazer' });
+      const ok = await confirmBox({ title: 'Desfazer movimentação?', text: 'O arquivo voltará à pasta de origem se ainda estiver no destino e sem alterações. Se o nome original estiver ocupado, será usado um nome numerado.', okText: 'Desfazer' });
       if (ok && await run('undo', { event_id: d.id }, { success: 'Movimentação desfeita.' })) { UI.history = null; render(); }
       return;
     }
@@ -890,16 +1141,30 @@ async function onSubmit(form) {
 document.addEventListener('click', e => {
   const tab = e.target.closest('#nav button[data-tab], [data-tab-go]');
   if (tab) {
+    const previousTab = TAB;
     TAB = tab.dataset.tab || tab.dataset.tabGo; safeSet('ol_tab', TAB);
     $('#nav').classList.remove('open');
+    $('#menuToggle').setAttribute('aria-expanded', 'false');
     if (TAB === 'sistema') UI.sysinfo = null;
-    render(); window.scrollTo(0, 0); return;
+    if (TAB === 'historico' && previousTab !== TAB) UI.history = null;
+    render();
+    const destination = document.getElementById(tab.dataset.jump || '');
+    if (destination) destination.focus();
+    else { $('#main h1')?.focus({ preventScroll: true }); window.scrollTo(0, 0); }
+    return;
   }
   const el = e.target.closest('[data-act]');
   if (el && !el.closest('#modal')) { e.preventDefault(); act(el.dataset.act, el); }
 });
 document.addEventListener('submit', e => { if (e.target.closest('#modal')) return; e.preventDefault(); onSubmit(e.target); });
 document.addEventListener('change', async e => {
+  if (e.target.id === 'dashboardPeriod') {
+    UI.dashboardPeriod = e.target.value;
+    const movement = S.stats.movement_periods[UI.dashboardPeriod] || S.stats;
+    const metric = e.target.closest('.dashboard-metric');
+    $('.metric-value', metric).textContent = count.format(movement.moves);
+    $('.metric-detail', metric).textContent = `${bytes(movement.moved_bytes)} movidos`;
+  }
   if (e.target.id === 'simFilter') { UI.simFilter = e.target.value; render(); }
   if (e.target.name === 'ext') e.target.closest('.extchip')?.classList.toggle('on', e.target.checked);
   if (e.target.id === 'qAuto') run('config_update', { changes: { quarantine_risky: e.target.checked } }, { success: 'Preferência salva.' });
@@ -911,18 +1176,60 @@ document.addEventListener('change', async e => {
     } catch { toast('Arquivo JSON inválido.', true); }
   }
 });
-$('#menuToggle').addEventListener('click', () => $('#nav').classList.toggle('open'));
+$('#menuToggle').addEventListener('click', e => {
+  e.currentTarget.setAttribute('aria-expanded', String($('#nav').classList.toggle('open')));
+});
+document.addEventListener('keydown', e => {
+  const modal = $('#modal');
+  if (modal.classList.contains('hidden')) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    $('[data-close]', modal)?.click();
+  }
+  if (e.key === 'Tab') {
+    const controls = $$('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]', modal);
+    const end = e.shiftKey ? controls[0] : controls.at(-1);
+    if (end === document.activeElement || !modal.contains(document.activeElement)) {
+      e.preventDefault();
+      (e.shiftKey ? controls.at(-1) : controls[0])?.focus();
+    }
+  }
+});
 document.addEventListener('input', e => { if (e.target.id === 'extFilter') filterExts(); });
 
+let starting = false;
 async function start() {
-  const alive = await ping();
-  if (!alive) return renderOffline();
-  if (!TOKEN) return renderPairing();
-  try { await refresh(); } catch (err) { if (TOKEN) toast(err.message, true); }
+  if (starting) return;
+  starting = true;
+  if (TAB === 'painel' && !S) dashboardPlaceholder();
+  const retry = $('[data-act="retry"]');
+  if (retry) retry.disabled = true;
+  try {
+    const alive = await ping();
+    if (!alive) {
+      if (S && TOKEN && TAB === 'painel') {
+        setConnection(false);
+        return readError(new Error('O programa local não está respondendo.'));
+      }
+      return renderOffline();
+    }
+    if (!TOKEN) return renderPairing();
+    await refresh();
+  } catch (err) { readError(err); }
+  finally {
+    starting = false;
+    if (retry) retry.disabled = false;
+  }
 }
+$$('#nav [data-icon]').forEach(mark => { mark.innerHTML = icon(mark.dataset.icon); });
 start();
 // Atualiza o painel periodicamente (sem atrapalhar formulários abertos).
-setInterval(() => {
-  if (!TOKEN || !S || document.hidden || UI.ruleForm || UI.backupForm || !$('#modal').classList.contains('hidden')) return;
-  if (['painel', 'organizacao', 'backups'].includes(TAB) && !document.activeElement?.matches('input,textarea,select')) refresh().catch(() => renderOffline());
+let updating = false;
+setInterval(async () => {
+  if (!TOKEN || !S || starting || updating || document.hidden || UI.ruleForm || UI.backupForm || UI.organizationAction || !$('#modal').classList.contains('hidden')) return;
+  if (!['painel', 'organizacao', 'backups'].includes(TAB) || document.activeElement?.matches('#main :is(input,textarea,select,button,summary)')) return;
+  updating = true;
+  try { await refresh(); }
+  catch (error) { if (TAB === 'painel') readError(error); else if (TOKEN) renderOffline(); }
+  finally { updating = false; }
 }, 30000);

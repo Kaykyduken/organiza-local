@@ -186,15 +186,16 @@ class Organizer:
 
     def validate_all(self) -> list[dict]:
         """Problemas em regras + possíveis empates + pastas monitoradas inexistentes."""
-        problems = [{"rule": r.get("name"), "error": e}
+        problems = [{"rule": r.get("name"), "error": e, "kind": "rule", "rule_id": r.get("id")}
                     for r in self.config["rules"] for e in self.validate(r)]
         for item in R.overlapping_rules(self.config["rules"]):
-            problems.append({"rule": " × ".join(item["rules"]),
+            problems.append({"rule": " × ".join(item["rules"]), "kind": "overlap",
                              "error": f"Mesma prioridade ({item['priority']}) e condições que podem "
                                       f"coincidir ({item['detail']}). Arquivos assim irão para revisão."})
         for folder in self.config.get("watch_dirs", []):
             if not Path(folder).is_dir():
-                problems.append({"rule": "Pastas monitoradas", "error": f"Pasta indisponível: {folder}"})
+                problems.append({"rule": "Pastas monitoradas", "kind": "watch_dir",
+                                 "error": f"Pasta indisponível: {folder}"})
         return problems
 
     # ------------------------------------------------------------------

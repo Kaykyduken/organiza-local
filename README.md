@@ -7,6 +7,7 @@ Orientador: Prof. Me. Deivison S. Takatu.
 
 | | |
 |---|---|
+| **Instalar o programa** | [Instaladores para Windows e Linux](Instaladores/) |
 | Painel (site) | https://organiza-local.vercel.app *(abre e controla o programa local)* |
 | Versão | 1.0.0 |
 | Sistemas | Windows 10/11 e Linux |
@@ -98,12 +99,12 @@ Mais detalhes em [`docs/conceitos-so.md`](docs/conceitos-so.md).
 
 ### Instalador (recomendado)
 
-Baixe em **https://organiza-local.vercel.app** (botões “Ainda não instalou?”) ou na pasta [`web/downloads/`](web/downloads):
+Abra a pasta [Instaladores](Instaladores/) na raiz do projeto e escolha o arquivo do seu sistema. Os pacotes também estão disponíveis no painel do OrganizaLocal na seção **Ainda não instalou?**.
 
 | Sistema | Arquivo | Como instalar |
 |---|---|---|
-| **Windows 10/11** | `OrganizaLocal-Setup-1.0.0.exe` (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
-| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `organizalocal_1.0.0_all.deb` | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.0.0_all.deb` |
+| **Windows 10/11** | [OrganizaLocal-Setup-1.0.0.exe](Instaladores/OrganizaLocal-Setup-1.0.0.exe) (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | [organizalocal_1.0.0_all.deb](Instaladores/organizalocal_1.0.0_all.deb) | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.0.0_all.deb` na pasta Instaladores |
 
 **Instalador do Windows:**
 
@@ -120,39 +121,31 @@ Baixe em **https://organiza-local.vercel.app** (botões “Ainda não instalou?�
 - Os dados de cada usuário ficam em `~/.local/share/OrganizaLocal`.
 - Para remover: `sudo apt remove organizalocal`. Os dados são mantidos.
 
-**Gerar os instaladores** (a partir do código):
-
-```bash
-./installer/windows/build.sh     # requer makensis (sudo apt install nsis); baixa e confere o Python embutido
-./installer/linux/build-deb.sh   # requer dpkg-deb
-# saída em dist/
-```
-
 ### Scripts (alternativa sem instalador)
 
 **Windows:**
 
 1. Instale o **Python 3.10+** em [python.org](https://www.python.org/downloads/), marcando **"Add python.exe to PATH"**.
-2. Dê dois cliques em **`scripts\instalar.bat`**.
+2. Dê dois cliques em [scripts/Windows/instalar.bat](scripts/Windows/instalar.bat). Veja os demais comandos no [guia para Windows](scripts/Windows/README.md).
 
 **Linux:**
 
 ```bash
 git clone https://github.com/Kaykyduken/organiza-local.git
 cd organiza-local
-chmod +x scripts/*.sh
-./scripts/instalar.sh
+bash scripts/Linux/instalar.sh
 organizalocal open        # abre o painel (o atalho do menu faz o mesmo)
 ```
 
 O script cria `~/.local/share/OrganizaLocal` (permissão 700), o comando `~/.local/bin/organizalocal`, o atalho `.desktop` e a entrada `@reboot` no `crontab`.
+Veja os demais comandos no [guia para Linux](scripts/Linux/README.md).
 
 ### Sem instalar (desenvolvimento)
 
-```bash
-./scripts/iniciar.sh          # Linux
-scripts\iniciar.bat           # Windows
-```
+| Sistema | Comando a partir da raiz do projeto |
+|---|---|
+| Windows (PowerShell) | `.\scripts\Windows\iniciar.bat` |
+| Linux (terminal) | `bash scripts/Linux/iniciar.sh` |
 
 Depois, acesse `http://127.0.0.1:8765`.
 
@@ -164,14 +157,14 @@ Depois, acesse `http://127.0.0.1:8765`.
 
 ### Publicação na Vercel
 
-O site é a pasta `web/`, configurada pelo `vercel.json`. Basta importar o repositório na Vercel com o framework **Other**. Depois, informe a URL em **Configurações → URL do site** ou use `--site` no instalador.
+Ao importar o repositório na Vercel com o framework **Other**, o comando em `vercel.json` prepara `dist/site/` com a interface de `web/` e os arquivos de download de `Instaladores/`. Depois, informe a URL em **Configurações → URL do site** ou use `--site` no instalador.
 
 O Chrome/Edge pede uma vez a permissão de **acesso à rede local**: clique em **Permitir**.
 
 **Verificar a integridade dos instaladores:**
 
 ```bash
-cd web/downloads
+cd Instaladores
 sha256sum -c SHA256SUMS.txt
 ```
 
@@ -190,12 +183,12 @@ O comando deve retornar `OK` para o instalador do Windows e para o pacote Linux.
 
 | Script | Uso |
 |---|---|
-| `scripts/instalar.sh` · `instalar.bat` | Instalação completa (pasta do app, atalhos, início automático) |
-| `scripts/desinstalar.sh` · `desinstalar.bat` | Remove o programa e mantém os dados (`--apagar-dados` para apagar tudo) |
-| `scripts/verificar_sistema.sh` | Relatório de CPU, memória, disco, processo, permissões, cron e últimas operações, salvo em `reports/` |
-| `scripts/backup_agora.sh [nome]` | Backup pelo terminal, com código de saída (ideal para cron) |
-| `scripts/agendar_cron.sh [--remover]` | Alternativa via cron: `organize` a cada hora e backup às 02:30 |
-| `scripts/iniciar.sh` · `iniciar.bat` | Executa direto do repositório |
+| [scripts/Linux/instalar.sh](scripts/Linux/instalar.sh) · [scripts/Windows/instalar.bat](scripts/Windows/instalar.bat) | Instalação completa (pasta do app, atalhos, início automático) |
+| [scripts/Linux/desinstalar.sh](scripts/Linux/desinstalar.sh) · [scripts/Windows/desinstalar.bat](scripts/Windows/desinstalar.bat) | Remove o programa e mantém os dados por padrão |
+| [scripts/Linux/verificar_sistema.sh](scripts/Linux/verificar_sistema.sh) | Relatório de CPU, memória, disco, processo, permissões, cron e últimas operações, salvo em `reports/` |
+| [scripts/Linux/backup_agora.sh](scripts/Linux/backup_agora.sh) `[nome]` | Backup pelo terminal, com código de saída (ideal para cron) |
+| [scripts/Linux/agendar_cron.sh](scripts/Linux/agendar_cron.sh) `[--remover]` | Agenda a organização a cada hora e o backup às 02h30 via cron |
+| [scripts/Linux/iniciar.sh](scripts/Linux/iniciar.sh) · [scripts/Windows/iniciar.bat](scripts/Windows/iniciar.bat) | Executa direto do repositório |
 
 ## 8. Como testar
 
@@ -205,7 +198,7 @@ python -m unittest discover -s tests -q  # recomendado; não exige dependências
 python -m pytest -q
 ```
 
-São **81 testes automatizados** em `tests/`. Eles cobrem:
+São **83 testes automatizados** em `tests/`. Eles cobrem:
 
 - cada história de usuário (HU01–HU12);
 - integridade SHA-256 e conflitos sem sobrescrever;
@@ -226,7 +219,7 @@ Cada teste roda numa pasta temporária isolada.
    - `foto.jpg` → Imagens.
 4. Clique em **Organizar agora** e confira as pastas e a aba **Histórico**.
 5. Crie uma regra de backup e clique 6 vezes em "Fazer backup agora", alterando um arquivo entre as execuções. Só as 5 versões mais recentes ficam.
-6. Rode `./scripts/verificar_sistema.sh`.
+6. Rode `bash scripts/Linux/verificar_sistema.sh`.
 
 Rastreabilidade completa em [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
 
@@ -261,8 +254,11 @@ organiza-local/
 │   ├── server.py        # API HTTP em 127.0.0.1
 │   └── cli.py           # comandos de terminal
 ├── web/                 # site publicado na Vercel (HTML/CSS/JS)
-├── scripts/             # instalação e automação (Bash, PowerShell, Batch)
-├── installer/           # geração do Setup.exe (NSIS) e do pacote .deb
+├── scripts/
+│   ├── Linux/           # instalação, inicialização e utilitários em Bash
+│   └── Windows/         # instalação e inicialização em Batch e PowerShell
+├── Instaladores/        # arquivos prontos para Windows (.exe) e Linux (.deb)
+├── empacotamento/       # scripts e recursos para gerar os instaladores
 ├── tests/               # testes automatizados
 ├── docs/                # conceitos de SO, prints e documento do projeto
 ├── vercel.json

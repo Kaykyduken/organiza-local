@@ -26,7 +26,7 @@ from . import APP_NAME
 
 # Subpastas criadas dentro da pasta de dados do aplicativo.
 DATA_FOLDERS = (
-    "app",                 # código instalado pelo instalador (scripts/instalar.*)
+    "app",                 # código instalado pelos scripts de instalação
     "history",             # events.jsonl, review.json, notes.json, storage.json
     "backups",             # versões de backup (quando a regra não define outro destino)
     "protected_versions",  # cópias de segurança feitas antes de substituir arquivos

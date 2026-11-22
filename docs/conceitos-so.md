@@ -52,7 +52,7 @@ Este guia ajuda cada integrante a explicar, na apresentação, **onde** e **como
 - **Do sistema operacional** (início automático do serviço):
   - Linux: `crontab` com `@reboot` (feito pelo `instalar.sh`);
   - Windows: atalho na pasta **Inicializar** (`shell:startup`).
-- **Alternativa clássica**: `scripts/agendar_cron.sh` coloca `0 * * * * organizalocal organize` e `30 2 * * * backup_agora.sh` no cron.
+- O script `scripts/Linux/agendar_cron.sh` agenda a organização de arquivos a cada hora e o backup às 02h30 via cron.
 
 ## 6. Memória, CPU e armazenamento
 
@@ -90,7 +90,7 @@ Este guia ajuda cada integrante a explicar, na apresentação, **onde** e **como
 - `history/events.jsonl`: uma linha JSON por evento. O arquivo só recebe acréscimos (*append-only*), e linhas antigas nunca são reescritas.
 - Cada movimentação guarda origem, destino, regra, SHA-256, tamanho, método (`rename` ou `copy+sha256`) e id da execução.
 - O relatório PDF é gerado sem bibliotecas externas (`reports.py → write_pdf`).
-- O `scripts/verificar_sistema.sh` grava um relatório de verificação em texto.
+- O `scripts/Linux/verificar_sistema.sh` grava um relatório de verificação em texto.
 
 ## 10. Rede local (loopback) e segurança
 

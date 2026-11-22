@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import rules as R
@@ -87,6 +87,13 @@ class Reports:
         by_cat: dict[str, int] = {}
         by_day: dict[str, int] = {}
         by_rule: dict[str, int] = {}
+        today = date.today()
+        end = today.isoformat()
+        periods = {key: (today - timedelta(days=days)).isoformat()
+                   for key, days in (("today", 0), ("week", 6), ("month", 29))}
+        movement_periods = {key: {"moves": 0, "moved_bytes": 0} for key in periods}
+        last_organization = last_backup = None
+        last_backup_success = ""
         if self.store.history_path.exists():
             with self.store.lock, open(self.store.history_path, encoding="utf-8") as handle:
                 for line in handle:
@@ -95,11 +102,21 @@ class Reports:
                     except json.JSONDecodeError:
                         continue
                     events += 1
-                    if e.get("status") == "error":
+                    status, operation = e.get("status"), e.get("operation")
+                    if status == "error":
                         errors += 1
-                    if e.get("operation") in ("move", "review") and e.get("status") == "ok":
+                    if operation == "organize":
+                        keys = ("timestamp", "status", "reason", "moved", "reviewed", "quarantined", "failures")
+                        last_organization = {key: e[key] for key in keys if key in e}
+                    if operation == "backup":
+                        keys = ("timestamp", "status", "detail", "reason")
+                        last_backup = {key: e[key] for key in keys if key in e}
+                        if status == "ok":
+                            last_backup_success = e.get("timestamp", "")
+                    if operation in ("move", "review") and status == "ok":
+                        size = int(e.get("bytes") or 0)
                         moves += 1
-                        moved_bytes += int(e.get("bytes") or 0)
+                        moved_bytes += size
                         dest = e.get("destination", "")
                         ext = R.extension(dest) or "(sem extensão)"
                         cat = R.category(dest, self.store.config.get("categories"))
@@ -107,6 +124,10 @@ class Reports:
                         by_cat[cat] = by_cat.get(cat, 0) + 1
                         day = str(e.get("timestamp", ""))[:10]
                         by_day[day] = by_day.get(day, 0) + 1
+                        for key, start in periods.items():
+                            if start <= day <= end:
+                                movement_periods[key]["moves"] += 1
+                                movement_periods[key]["moved_bytes"] += size
                         rule = e.get("rule_name") or "Destino padrão"
                         by_rule[rule] = by_rule.get(rule, 0) + 1
         index = self.store.read(self.store.backup_index_path, {})
@@ -115,6 +136,10 @@ class Reports:
                 "by_category": dict(sorted(by_cat.items(), key=lambda x: -x[1])),
                 "by_rule": dict(sorted(by_rule.items(), key=lambda x: -x[1])[:12]),
                 "by_day": dict(sorted(by_day.items())[-14:]),
+                "movement_periods": movement_periods,
+                "last_organization": last_organization,
+                "last_backup": last_backup,
+                "last_backup_success": last_backup_success,
                 "backup_versions": sum(len(v) for v in index.values()),
                 "backup_bytes": sum(int(x.get("stored_bytes", 0)) for v in index.values() for x in v),
                 "pending_review": len(self.store.read(self.store.review_path, []))}

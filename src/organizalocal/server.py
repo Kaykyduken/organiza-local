@@ -495,7 +495,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _static(self, path: str):
         root = web_directory().resolve()
-        target = (root / (path.lstrip("/") or "index.html")).resolve()
+        relative = path.lstrip("/") or "index.html"
+        download = re.fullmatch(r"/downloads/([\w.-]+\.(?:exe|deb)|SHA256SUMS\.txt)", path)
+        if download:
+            installers = root.parent / "Instaladores"
+            if installers.is_dir() and installers.resolve() == installers:
+                root = installers
+                relative = download.group(1)
+        target = (root / relative).resolve()
         if target.is_dir():
             target = target / "index.html"
         if root not in target.parents or not target.is_file():      # bloqueia "../" fora de web/
