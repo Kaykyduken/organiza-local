@@ -33,7 +33,8 @@ ACTION_LABELS = {
     "move": "Mover", "default": "Mover (destino padrão)", "quarantine": "Quarentena",
     "exception": "Exceção — não mover", "tie": "Empate de prioridade — revisar",
     "suspicious": "Formato disfarçado — revisar",
-    "conflict": "Já existe no destino", "no_match": "Nenhuma regra", "busy": "Em uso/incompleto",
+    "conflict": "Já existe no destino", "no_match": "Sem regra correspondente", "busy": "Em uso ou sendo salvo",
+    "other_rule": "Outra regra tem prioridade",
     "excluded": "Excluído/protegido", "already": "Já está no destino", "error": "Erro",
 }
 
@@ -121,19 +122,58 @@ class Organizer:
         return rule
 
     def validate(self, rule: dict) -> list[str]:
-        return R.validate_rule(rule, is_protected=lambda p: self.protected(p, is_dir=True),
-                               can_write=self.can_write_dir)
+        errors = R.validate_rule(rule, is_protected=lambda p: self.protected(p, is_dir=True),
+                                 can_write=self.can_write_dir)
+        sources = rule.get("sources", [])
+        for source in sources:
+            path = Path(source).expanduser()
+            if (not path.is_absolute() or not path.is_dir() or path.is_symlink()
+                    or self.protected(path, is_dir=True) or self.excluded(path)
+                    or not os.access(path, os.R_OK | os.X_OK)):
+                errors.append(f"Escolha uma pasta de origem existente, acessível e fora das áreas protegidas: {source}")
+            for existing in self.config["rules"]:
+                if existing.get("id") != rule.get("id") and existing.get("enabled", True) and any(
+                    under(source, destination) or (rule.get("source_recursive") and under(destination, source))
+                    for destination in self.rule_destinations(existing)
+                ):
+                    errors.append(f"A origem se sobrepõe ao destino da regra {existing['name']}: {source}")
+        for destination in self.rule_destinations(rule):
+            dest = Path(destination).expanduser()
+            if sources and (not dest.is_absolute() or self.protected(dest, is_dir=True)
+                            or not self.can_write_dir(dest)):
+                errors.append(f"Escolha uma pasta de destino válida e gravável: {destination}")
+            if any(under(source, dest) or (rule.get("source_recursive") and under(dest, source))
+                   for source in sources):
+                errors.append(f"O destino se sobrepõe à origem desta regra: {destination}")
+            for existing in self.config["rules"]:
+                if existing.get("id") != rule.get("id") and existing.get("enabled", True) and any(
+                    under(source, dest) or (existing.get("source_recursive") and under(dest, source))
+                    for source in existing.get("sources", [])
+                ):
+                    errors.append(f"O destino se sobrepõe à origem da regra {existing['name']}: {destination}")
+        return list(dict.fromkeys(errors))
+
+    def rule_destinations(self, rule: dict) -> list[str]:
+        project = next((p for p in self.config.get("projects", []) if p.get("id") == rule.get("project_id")), {})
+        return [path for path in [project.get("directory") or rule.get("destination"),
+                                  *(e.get("destination") for e in rule.get("exceptions", []) if e.get("action") == "move")]
+                if path]
 
     def save_rule(self, payload: dict, rule_id: str | None = None) -> dict:
         """Cria (rule_id vazio) ou edita (HU07) uma regra, validando antes de salvar."""
-        rule = R.normalize_rule(payload)
-        errors = self.validate(rule)
-        if errors:
-            raise ValueError(" ".join(errors))
         with self.store.lock:
             rules = self.config["rules"]
             index = next((i for i, r in enumerate(rules) if r.get("id") == rule_id), None) if rule_id else None
+            if index is not None and "sources" not in payload:
+                # A interface anterior à 1.1 não envia a origem quando edita uma regra.
+                current = rules[index]
+                payload = {**payload, "sources": current.get("sources", []),
+                           "source_recursive": current.get("source_recursive", False)}
+            rule = R.normalize_rule(payload)
             rule["id"] = rule_id if index is not None else secrets.token_hex(6)
+            errors = self.validate(rule)
+            if errors:
+                raise ValueError(" ".join(errors))
             if index is None:
                 rules.append(rule)
             else:
@@ -163,6 +203,10 @@ class Organizer:
         """HU09 — ativa/desativa sem excluir; o estado fica salvo."""
         with self.store.lock:
             rule = self.rule_by_id(rule_id)
+            if enabled:
+                errors = self.validate(rule)
+                if errors:
+                    raise ValueError(" ".join(errors))
             rule["enabled"] = bool(enabled)
             self.store.save_config()
         self.store.event("rule_toggle", "ok", rule_id=rule_id, rule_name=rule["name"],
@@ -184,17 +228,25 @@ class Organizer:
         """HU04/HU06 — lista ordenada por prioridade (maior primeiro)."""
         return sorted(self.config["rules"], key=lambda r: (-int(r.get("priority", 0)), r.get("name", "")))
 
+    def rule_overlaps(self, rules: list[dict]) -> list[dict]:
+        global_sources = self.config.get("watch_dirs", [])
+        scoped = [rule if rule.get("sources") else
+                  rule | {"sources": global_sources, "source_recursive": self.config.get("recursive", False)}
+                  for rule in rules if rule.get("sources") or global_sources]
+        return R.overlapping_rules(scoped)
+
     def validate_all(self) -> list[dict]:
         """Problemas em regras + possíveis empates + pastas monitoradas inexistentes."""
-        problems = [{"rule": r.get("name"), "error": e}
+        problems = [{"rule": r.get("name"), "error": e, "kind": "rule", "rule_id": r.get("id")}
                     for r in self.config["rules"] for e in self.validate(r)]
-        for item in R.overlapping_rules(self.config["rules"]):
-            problems.append({"rule": " × ".join(item["rules"]),
+        for item in self.rule_overlaps(self.config["rules"]):
+            problems.append({"rule": " × ".join(item["rules"]), "kind": "overlap", "rule_ids": item["rule_ids"],
                              "error": f"Mesma prioridade ({item['priority']}) e condições que podem "
                                       f"coincidir ({item['detail']}). Arquivos assim irão para revisão."})
         for folder in self.config.get("watch_dirs", []):
             if not Path(folder).is_dir():
-                problems.append({"rule": "Pastas monitoradas", "error": f"Pasta indisponível: {folder}"})
+                problems.append({"rule": "Pastas monitoradas", "kind": "watch_dir",
+                                 "error": f"Pasta indisponível: {folder}"})
         return problems
 
     # ------------------------------------------------------------------
@@ -202,7 +254,7 @@ class Organizer:
     # ------------------------------------------------------------------
     def scan(self, paths=None, recursive: bool | None = None):
         """Gera os arquivos das pastas monitoradas (padrão: Downloads)."""
-        paths = paths or self.config.get("watch_dirs", [])
+        paths = self.config.get("watch_dirs", []) if paths is None else paths
         recursive = self.config.get("recursive", False) if recursive is None else recursive
         count = 0
         for source in paths:
@@ -211,10 +263,10 @@ class Organizer:
                 if not root.is_symlink() and not self.excluded(root):
                     yield root
                 continue
-            if not root.is_dir() or self.protected(root, is_dir=True):
+            if not root.is_dir() or root.is_symlink() or self.protected(root, is_dir=True) or self.excluded(root):
                 continue
             # Destinos das regras que ficam dentro da pasta monitorada não são reprocessados.
-            skip_dirs = [r.get("destination") for r in self.config["rules"] if r.get("destination")]
+            skip_dirs = [dest for r in self.config["rules"] for dest in self.rule_destinations(r)]
             for directory, folders, files in os.walk(root, followlinks=False):
                 parent = Path(directory)
                 folders.sort()
@@ -234,6 +286,28 @@ class Organizer:
                         return
                 if not recursive:
                     folders.clear()     # apenas o primeiro nível
+
+    def organization_inputs(self, paths=None, only_rule: str | None = None, rules=None):
+        """Varre origens globais e adicionais, marcando onde o destino padrão pode atuar."""
+        rules = self.config["rules"] if rules is None else rules
+        candidates = [r for r in rules if r.get("enabled", True) and (not only_rule or r.get("id") == only_rule)]
+        scoped = [(tuple(source for source in r["sources"] if Path(source).expanduser().is_absolute()),
+                   r.get("source_recursive", False)) for r in candidates if r.get("sources")]
+        scans = [(paths, None, True)]
+        if paths is None:
+            if only_rule and scoped:
+                scans.clear()
+            scans.extend((sources, recursive, False) for sources, recursive in dict.fromkeys(scoped))
+        seen = set()
+        for sources, recursive, global_source in scans:
+            for file in self.scan(sources, recursive):
+                real = file.resolve()
+                if real in seen:
+                    continue
+                seen.add(real)
+                yield file, global_source
+                if len(seen) >= MAX_FILES:
+                    return
 
     def busy_reason(self, file: Path) -> str | None:
         """Detecta arquivos temporários, ocultos, muito recentes ou sem permissão de leitura."""
@@ -255,7 +329,8 @@ class Organizer:
     # ------------------------------------------------------------------
     # Decisão por arquivo (usada pela simulação e pela execução)
     # ------------------------------------------------------------------
-    def decide(self, file, only_rule: str | None = None, sequence: int = 1) -> dict:
+    def decide(self, file, only_rule: str | None = None, sequence: int = 1, *,
+               rules=None, global_source: bool = True, draft: bool = False) -> dict:
         file = Path(file)
         row = {"source": str(file), "name": file.name, "destination": "", "action": "no_match",
                "rule_id": "", "rule_name": "", "matched": [], "reason": "",
@@ -272,13 +347,20 @@ class Organizer:
         if busy:
             row.update(action="busy", reason=busy)
             return row
-        disguised = R.is_disguised(file)
-        if disguised and not self.config.get("quarantine_risky") and not only_rule:
+        rules = self.config["rules"] if rules is None else rules
+        categories = self.config.get("categories")
+        result = R.evaluate(file, rules, categories, only_rule, scoped_only=not global_source)
+        if draft and not result["matched"]:
+            row["reason"] = "O arquivo não corresponde aos critérios desta regra."
+            return row
+        risky_applies = (not only_rule or draft) and (global_source or bool(result["matched"]))
+        disguised = risky_applies and R.is_disguised(file)
+        if disguised and not self.config.get("quarantine_risky"):
             # Conteúdo executável com extensão de outro tipo (ex.: "foto.jpg" que é .exe):
             # nunca é movido em silêncio — vai para a fila de revisão.
             row.update(action="suspicious", reason="O conteúdo é um executável, mas a extensão diz outra coisa.")
             return row
-        if self.config.get("quarantine_risky") and not only_rule:
+        if self.config.get("quarantine_risky") and risky_applies:
             if R.extension(file) in R.RISKY or disguised:
                 row.update(action="quarantine",
                            destination=str(self.store.root / "quarantine" / R.clean_name(file.name)),
@@ -286,7 +368,8 @@ class Organizer:
                            else "Extensão potencialmente perigosa.")
                 return row
 
-        result = R.evaluate(file, self.config["rules"], self.config.get("categories"), only_rule)
+        if draft:
+            result = R.evaluate(file, rules, categories, scoped_only=not global_source)
         row["matched"] = [{"id": r["id"], "name": r["name"], "priority": r.get("priority", 0)}
                           for r in result["matched"]]
         if result["tie"]:
@@ -294,6 +377,10 @@ class Organizer:
             row.update(action="tie", reason=f"Empate de prioridade entre: {names}.")
             return row
         rule = result["rule"]
+        if draft and rule and rule["id"] != only_rule:
+            row.update(action="other_rule", rule_id=rule["id"], rule_name=rule["name"],
+                       reason=f"A regra {rule['name']} tem prioridade neste arquivo.")
+            return row
         if rule:
             row.update(rule_id=rule["id"], rule_name=rule["name"])
             if result["conflict"]:
@@ -311,10 +398,20 @@ class Organizer:
                     return row
                 destination = exc.get("destination") or destination
                 row["reason"] = f"Exceção redirecionou para {destination}."
+            if not destination:
+                row.update(action="error", reason="O destino da regra está indisponível. Edite a regra e escolha outra pasta.")
+                return row
+            folder = Path(destination).expanduser()
+            if not folder.is_absolute() or self.protected(folder, is_dir=True) or not self.can_write_dir(folder):
+                row.update(action="error", reason="O destino está protegido ou sem permissão de escrita.")
+                return row
+            if not folder.exists() and not rule.get("create_destination", True):
+                row.update(action="error", reason="A pasta de destino deixou de existir e a criação automática está desligada.")
+                return row
             pattern = rule.get("rename_pattern") or self.config.get("rename_pattern", "")
-            target = Path(destination).expanduser() / R.render_name(file, pattern, sequence)
+            target = folder / R.render_name(file, pattern, sequence)
             action = "move"
-        elif self.config.get("default_destination") and not only_rule:
+        elif self.config.get("default_destination") and not only_rule and global_source:
             target = Path(self.config["default_destination"]).expanduser() / R.clean_name(file.name)
             action = "default"
         else:
@@ -332,12 +429,20 @@ class Organizer:
     # ------------------------------------------------------------------
     # HU10 — simulação: NÃO move nem modifica nada
     # ------------------------------------------------------------------
-    def simulate(self, paths=None, only_rule: str | None = None) -> dict:
+    def simulate(self, paths=None, only_rule: str | None = None, *, draft=None) -> dict:
         rows = []
         policy = self.config.get("conflict_policy", "rename")
-        for sequence, file in enumerate(self.scan(paths), 1):
+        rules = self.config["rules"]
+        if draft is not None:
+            rules = [r for r in rules if r.get("id") != draft["id"]] + [draft]
+        elif only_rule:
+            rules = [self.rule_by_id(only_rule) | {"enabled": True}]
+        for sequence, (file, global_source) in enumerate(self.organization_inputs(paths, only_rule, rules), 1):
             try:
-                row = self.decide(file, only_rule, sequence)
+                if draft is not None and not global_source:
+                    global_source = any(R.in_source(file, source, self.config.get("recursive", False))
+                                        for source in self.config.get("watch_dirs", []))
+                row = self.decide(file, only_rule, sequence, rules=rules, global_source=global_source, draft=draft is not None)
                 if row.get("conflict_existing"):
                     row["action"] = "conflict"
                     row["reason"] = {"rename": "Já existe: será salvo com nome numerado.",
@@ -354,6 +459,16 @@ class Organizer:
                 "would_move": summary["move"] + summary["default"] + (summary["conflict"] if policy == "rename" else 0),
                 "rows": rows, "policy": policy}
 
+    def simulate_draft(self, payload: dict, rule_id: str | None = None) -> dict:
+        rule = R.normalize_rule(payload) | {"id": rule_id or secrets.token_hex(6), "enabled": True}
+        errors = self.validate(rule)
+        if errors:
+            raise ValueError(" ".join(errors))
+        candidates = [r for r in self.config["rules"] if r.get("id") != rule["id"]] + [rule]
+        warnings = ["Possível empate de prioridade com " + ", ".join(item["rules"])
+                    for item in self.rule_overlaps(candidates) if rule["id"] in item["rule_ids"]]
+        return self.simulate(only_rule=rule["id"], draft=rule) | {"warnings": warnings}
+
     # ------------------------------------------------------------------
     # HU11/HU12 — execução da organização
     # ------------------------------------------------------------------
@@ -369,11 +484,14 @@ class Organizer:
                   "moved": 0, "quarantined": 0, "reviewed": 0, "skipped": 0, "errors": [],
                   "moves": []}
         try:
-            for sequence, file in enumerate(self.scan(paths), 1):
+            for sequence, (file, global_source) in enumerate(self.organization_inputs(paths, only_rule), 1):
                 result["processed"] += 1
                 try:
-                    row = self.decide(file, only_rule, sequence)
+                    row = self.decide(file, only_rule, sequence, global_source=global_source)
                     action = row["action"]
+                    if action == "error":
+                        result["errors"].append({"file": str(file), "reason": row["reason"]})
+                        continue
                     if action in ("tie", "suspicious"):
                         self.add_review(file, None, "priority_tie" if action == "tie" else "suspicious", row["reason"])
                         result["reviewed"] += 1
@@ -591,16 +709,22 @@ class Organizer:
     # ------------------------------------------------------------------
     # Ferramentas extras (mantidas do projeto 0.9)
     # ------------------------------------------------------------------
-    def rename_file(self, path: str, pattern: str, sequence: int = 1) -> dict:
-        """Renomeia um arquivo usando um modelo de nome."""
+    def rename_preview(self, path: str, pattern: str, sequence: int = 1) -> dict:
         source = Path(path).expanduser().resolve()
         if not source.is_file() or self.protected(source):
             raise ValueError("Arquivo não encontrado ou protegido.")
         target = source.parent / R.render_name(source, pattern, int(sequence))
+        if target != source and target.exists():
+            raise FileExistsError(str(target))
+        return {"source": str(source), "destination": str(target)}
+
+    def rename_file(self, path: str, pattern: str, sequence: int = 1, expected: str = "") -> dict:
+        preview = self.rename_preview(path, pattern, sequence)
+        source, target = Path(preview["source"]), Path(preview["destination"])
+        if expected and str(target) != expected:
+            raise ValueError("O nome previsto mudou. Gere uma nova prévia.")
         if target == source:
             return {"unchanged": str(source)}
-        if target.exists():
-            raise FileExistsError(str(target))
         return self.transfer(source, target, operation="rename")
 
     def duplicates(self, paths=None) -> list[dict]:
@@ -741,16 +865,20 @@ class Organizer:
         initial.mkdir(parents=True)
         output.mkdir()
         copied = 0
-        for file in self.scan(paths):
+        originals = {}
+        for file, global_source in self.organization_inputs(paths):
             if copied >= limit:
                 break
             target = self._unique(initial / file.name)
             shutil.copy2(file, target)
+            originals[target] = (file, global_source)
             os.utime(target, (time.time() - 3600, time.time() - 3600))  # evita "arquivo recente"
             copied += 1
         results = []
         for file in sorted(initial.iterdir()):
-            res = R.evaluate(file, self.config["rules"], self.config.get("categories"))
+            original, global_source = originals[file]
+            res = R.evaluate(file, self.config["rules"], self.config.get("categories"),
+                             original_path=original, scoped_only=not global_source)
             if res["tie"]:
                 results.append({"file": file.name, "rule": "", "output": "", "note": "empate → revisão"})
                 continue

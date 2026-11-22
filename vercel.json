@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "",
+  "buildCommand": "mkdir -p dist/site/downloads && cp -R web/. dist/site/ && cp Instaladores/*.exe Instaladores/*.deb Instaladores/SHA256SUMS.txt dist/site/downloads/",
   "installCommand": "",
-  "outputDirectory": "web",
+  "outputDirectory": "dist/site",
   "headers": [
     {
       "source": "/(.*)",

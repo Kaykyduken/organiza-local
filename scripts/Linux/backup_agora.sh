@@ -5,8 +5,8 @@
 # Se o serviço estiver aberto, o pedido vai pela API; senão o backup roda direto.
 # Código de saída: 0 = sucesso, 1 = alguma regra falhou.
 #
-# Uso:  ./scripts/backup_agora.sh            # todas as regras de backup
-#       ./scripts/backup_agora.sh "Faculdade"  # só a regra com esse nome (ou id)
+# Uso:  bash scripts/Linux/backup_agora.sh              # todas as regras de backup
+#       bash scripts/Linux/backup_agora.sh "Faculdade"  # só a regra com esse nome (ou id)
 # =============================================================================
 set -uo pipefail
 
@@ -14,7 +14,7 @@ if command -v organizalocal >/dev/null; then
   CMD=(organizalocal)
 else
   # Executando direto do repositório (sem instalar)
-  REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   export PYTHONPATH="$REPO_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
   CMD=(python3 -m organizalocal)
 fi

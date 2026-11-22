@@ -32,10 +32,10 @@ Para clonar o repositório:
 
 Não precisa instalar nada. Na pasta do repositório:
 
-```bash
-./scripts/iniciar.sh          # Linux
-scripts\iniciar.bat           # Windows (ou dois cliques no arquivo)
-```
+| Sistema | Comando |
+|---|---|
+| Windows (PowerShell) | `.\scripts\Windows\iniciar.bat` |
+| Linux (terminal) | `bash scripts/Linux/iniciar.sh` |
 
 Depois, acesse `http://127.0.0.1:8765`. Para parar, use `Ctrl+C` no terminal.
 
@@ -43,14 +43,14 @@ Depois, acesse `http://127.0.0.1:8765`. Para parar, use `Ctrl+C` no terminal.
 >
 > ```bash
 > # Linux
-> ORGANIZALOCAL_PORT=8799 ORGANIZALOCAL_DATA=/tmp/ol-dev ./scripts/iniciar.sh
+> ORGANIZALOCAL_PORT=8799 ORGANIZALOCAL_DATA=/tmp/ol-dev bash scripts/Linux/iniciar.sh
 > ```
 >
 > ```bat
 > REM Windows (Prompt de Comando)
 > set ORGANIZALOCAL_PORT=8799
 > set ORGANIZALOCAL_DATA=%TEMP%\ol-dev
-> scripts\iniciar.bat
+> scripts\Windows\iniciar.bat
 > ```
 >
 > Nesse caso, acesse `http://127.0.0.1:8799`.
@@ -65,7 +65,7 @@ python -m unittest discover -s tests -q  # recomendado; sem instalar nada
 python -m pytest -q
 ```
 
-Hoje são **81 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
+Hoje são **92 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
 
 Não há CI automatizado configurado no repositório. Antes de abrir um pull request, rode o comando recomendado e informe o resultado. A validação do Windows é parcial até que o instalador e o fluxo de autostart sejam executados em Windows real.
 
@@ -122,9 +122,10 @@ Se ficar confuso, peça ajuda no grupo **antes** de forçar qualquer coisa. **Nu
 | API e permissões | `src/organizalocal/server.py`, `security.py` |
 | Informações do sistema (aba Sistema, conceitos de SO) | `src/organizalocal/sysinfo.py` |
 | Comandos de terminal | `src/organizalocal/cli.py` |
-| Site (telas, formulários, estilos) | `web/app.js`, `web/styles.css`, `web/index.html` |
-| Scripts de instalação e automação | `scripts/` |
-| Instaladores (Setup.exe e .deb) | `installer/` |
+| Site (telas, formulários, estilos) | `web/app.js`, `web/journeys.js`, `web/workspace-views.js`, `web/styles.css`, `web/index.html` |
+| Scripts de instalação e automação | `scripts/Linux/` e `scripts/Windows/` |
+| Instaladores prontos (Setup.exe e .deb) | [Instaladores/](Instaladores/) |
+| Geração dos pacotes | [empacotamento/](empacotamento/) |
 | Documento do projeto e prints | `docs/` |
 
 **Para adicionar uma ação nova na interface:**
@@ -136,7 +137,7 @@ Se ficar confuso, peça ajuda no grupo **antes** de forçar qualquer coisa. **Nu
 
 ## 7. Versões e instaladores
 
-Os instaladores em `web/downloads/` são gerados pelos scripts em `installer/`. **Não edite os binários na mão.** Se uma mudança precisar chegar a quem instala pelo Setup.exe ou pelo .deb, combine com o grupo para gerar os instaladores de novo e atualizar o `SHA256SUMS.txt`.
+Siga o [guia de empacotamento](empacotamento/) para gerar os pacotes em `dist/`. Depois de validar uma nova versão, coloque os arquivos prontos em `Instaladores/` e atualize o `SHA256SUMS.txt` dessa pasta. A compilação do site copia os pacotes para a rota pública `/downloads/`.
 
 ## 8. Divisão de responsabilidades
 

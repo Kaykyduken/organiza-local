@@ -5,7 +5,7 @@
 # código. Suas regras, histórico e backups são MANTIDOS, a não ser que use
 # --apagar-dados.
 #
-# Uso:  ./scripts/desinstalar.sh [--apagar-dados]
+# Uso:  bash scripts/Linux/desinstalar.sh [--apagar-dados]
 # =============================================================================
 set -uo pipefail
 

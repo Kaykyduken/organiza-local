@@ -20,9 +20,11 @@ param(
     [switch]$NaoAbrir
 )
 $ErrorActionPreference = "Stop"
-$Repo = Split-Path -Parent $PSScriptRoot
+$Repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 function Find-Python {
+    # Um alias do Python pode existir mesmo quando o executavel nao abre.
+    $ErrorActionPreference = "SilentlyContinue"
     # O "py launcher" e o jeito oficial de achar o Python no Windows.
     if (Get-Command py -ErrorAction SilentlyContinue) {
         $p = & py -3 -c "import sys; print(sys.executable)" 2>$null
@@ -60,6 +62,14 @@ Write-Host "==> [3/7] Copiando o programa..."
 Remove-Item (Join-Path $App "organizalocal"), (Join-Path $App "web") -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $Repo "src\organizalocal") (Join-Path $App "organizalocal") -Recurse
 Copy-Item (Join-Path $Repo "web") (Join-Path $App "web") -Recurse
+$Installers = Join-Path $Repo "Instaladores"
+if (Test-Path -LiteralPath $Installers -PathType Container) {
+    $Downloads = Join-Path $App "web\downloads"
+    New-Item -ItemType Directory -Force -Path $Downloads | Out-Null
+    Get-ChildItem -LiteralPath $Installers -File |
+        Where-Object { $_.Extension -in ".exe", ".deb" -or $_.Name -eq "SHA256SUMS.txt" } |
+        ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $Downloads }
+}
 Get-ChildItem $App -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Write-Host "    $((Get-ChildItem $App -Recurse -File).Count) arquivos copiados."
 

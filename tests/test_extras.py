@@ -4,7 +4,7 @@ import json
 import tarfile
 import unittest
 import zipfile
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from helpers import TempEnv, make_file
 from organizalocal import archives, sysinfo
@@ -30,6 +30,32 @@ class TestRelatorios(TempEnv):
         stats = self.app.reports.stats()
         self.assertEqual(stats["moves"], 1)
         self.assertEqual(stats["by_rule"], {"PDF": 1})
+
+    def test_periodos_e_ultimos_resultados_do_painel(self):
+        store = self.app.store
+        today = date.today()
+        for days_ago in (30, 29, 7, 6, 0):
+            day = today - timedelta(days=days_ago)
+            store.event("move", "ok", timestamp=f"{day}T12:00:00", bytes=10)
+        store.event("review", "pending", bytes=500)
+        store.event("move", "error", bytes=500)
+        backup = store.event("backup", "ok")
+        store.event("backup", "error", reason="Destino indisponível")
+        store.event("organize", "partial", moved=1, failures=1)
+        for _ in range(26):
+            store.event("config_save", "ok")
+
+        stats = self.app.state()["stats"]
+        self.assertEqual(stats["moves"], 5)
+        self.assertEqual(stats["movement_periods"], {
+            "today": {"moves": 1, "moved_bytes": 10},
+            "week": {"moves": 2, "moved_bytes": 20},
+            "month": {"moves": 4, "moved_bytes": 40},
+        })
+        self.assertEqual(stats["last_organization"]["status"], "partial")
+        self.assertEqual(stats["last_organization"]["failures"], 1)
+        self.assertEqual(stats["last_backup"]["status"], "error")
+        self.assertEqual(stats["last_backup_success"], backup["timestamp"])
 
     def test_vencimentos_e_limites(self):
         soon = (datetime.now() + timedelta(days=3)).date().isoformat()

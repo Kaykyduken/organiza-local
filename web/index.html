@@ -15,35 +15,39 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="claro">
+  <a class="skip-link" href="#main">Ir para o conteúdo</a>
   <div id="app">
     <header class="topbar">
       <div class="brand">
         <div class="logo" aria-hidden="true">
           <svg viewBox="0 0 32 32"><path d="M6 10h8l2.5 2.5H26V24H6z" fill="currentColor"/></svg>
         </div>
-        <div><strong>OrganizaLocal</strong><small>Organização automática e backups</small></div>
+        <strong>OrganizaLocal</strong>
       </div>
-      <button id="menuToggle" class="ghost only-mobile" aria-label="Abrir menu">☰</button>
-      <div id="connection" class="pill">Conectando…</div>
+      <button id="menuToggle" class="ghost only-mobile" aria-label="Menu de seções" aria-controls="nav" aria-expanded="false">☰</button>
+      <div id="connection" class="pill" role="status">Conectando…</div>
     </header>
     <div class="layout">
       <nav id="nav" aria-label="Seções">
-        <button data-tab="painel" class="active"><span>▦</span>Painel</button>
-        <button data-tab="regras"><span>⚙</span>Regras</button>
-        <button data-tab="organizacao"><span>⇄</span>Organização</button>
-        <button data-tab="backups"><span>▣</span>Backups</button>
-        <button data-tab="historico"><span>◷</span>Histórico</button>
-        <button data-tab="ferramentas"><span>✦</span>Ferramentas</button>
-        <button data-tab="seguranca"><span>⛨</span>Segurança</button>
-        <button data-tab="sistema"><span>⌁</span>Sistema</button>
-        <button data-tab="config"><span>☷</span>Configurações</button>
-        <div class="navfoot" id="navfoot">Arquivos processados só no seu computador.</div>
+        <button data-tab="painel" class="active" aria-current="page"><span data-icon="painel" aria-hidden="true"></span>Painel</button>
+        <button data-tab="regras"><span data-icon="regras" aria-hidden="true"></span>Regras</button>
+        <button data-tab="organizacao"><span data-icon="organizacao" aria-hidden="true"></span>Organização</button>
+        <button data-tab="backups"><span data-icon="backups" aria-hidden="true"></span>Backups</button>
+        <button data-tab="historico"><span data-icon="historico" aria-hidden="true"></span>Histórico</button>
+        <div class="nav-section">Recursos e controle</div>
+        <button data-tab="ferramentas"><span data-icon="ferramentas" aria-hidden="true"></span>Ferramentas</button>
+        <button data-tab="seguranca"><span data-icon="seguranca" aria-hidden="true"></span>Segurança</button>
+        <button data-tab="sistema"><span data-icon="sistema" aria-hidden="true"></span>Sistema</button>
+        <button data-tab="config"><span data-icon="config" aria-hidden="true"></span>Configurações</button>
+        <div class="navfoot" id="navfoot"></div>
       </nav>
-      <main id="main"><section class="card"><h2>Carregando…</h2></section></main>
+      <main id="main" tabindex="-1"><section class="card" role="status"><h2>Carregando…</h2></section></main>
     </div>
   </div>
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div>
   <div id="toast" role="status" aria-live="polite"></div>
+  <script src="journeys.js" defer></script>
+  <script src="workspace-views.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

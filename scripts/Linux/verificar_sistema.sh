@@ -13,7 +13,7 @@
 #   curl                     -> API local respondendo
 # O relatório é exibido e salvo em <pasta de dados>/reports/verificacao_<data>.txt
 #
-# Uso:  ./scripts/verificar_sistema.sh [pasta_extra ...]
+# Uso:  bash scripts/Linux/verificar_sistema.sh [pasta_extra ...]
 # =============================================================================
 set -uo pipefail
 

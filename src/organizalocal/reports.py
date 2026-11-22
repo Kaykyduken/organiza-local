@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import rules as R
@@ -17,7 +17,8 @@ OPERATION_NAMES = {
     "move": "Movido", "quarantine": "Quarentena", "organize": "Organização", "backup": "Backup",
     "restore": "Restauração", "undo": "Desfeito", "review": "Revisão", "rename": "Renomeado",
     "rule_save": "Regra salva", "rule_delete": "Regra excluída", "rule_toggle": "Regra ativada/desativada",
-    "rule_priority": "Prioridade alterada", "config_save": "Configuração", "external_change": "Alteração externa",
+    "rule_priority": "Prioridade alterada", "config_save": "Configurações atualizadas", "external_change": "Alteração externa",
+    "simulate": "Simulação", "service_start": "Aplicativo iniciado", "service_stop": "Aplicativo encerrado",
 }
 
 
@@ -87,6 +88,13 @@ class Reports:
         by_cat: dict[str, int] = {}
         by_day: dict[str, int] = {}
         by_rule: dict[str, int] = {}
+        today = date.today()
+        end = today.isoformat()
+        periods = {key: (today - timedelta(days=days)).isoformat()
+                   for key, days in (("today", 0), ("week", 6), ("month", 29))}
+        movement_periods = {key: {"moves": 0, "moved_bytes": 0} for key in periods}
+        last_organization = last_backup = None
+        last_backup_success = ""
         if self.store.history_path.exists():
             with self.store.lock, open(self.store.history_path, encoding="utf-8") as handle:
                 for line in handle:
@@ -95,11 +103,21 @@ class Reports:
                     except json.JSONDecodeError:
                         continue
                     events += 1
-                    if e.get("status") == "error":
+                    status, operation = e.get("status"), e.get("operation")
+                    if status == "error":
                         errors += 1
-                    if e.get("operation") in ("move", "review") and e.get("status") == "ok":
+                    if operation == "organize":
+                        keys = ("timestamp", "status", "reason", "moved", "reviewed", "quarantined", "failures")
+                        last_organization = {key: e[key] for key in keys if key in e}
+                    if operation == "backup":
+                        keys = ("timestamp", "status", "detail", "reason")
+                        last_backup = {key: e[key] for key in keys if key in e}
+                        if status == "ok":
+                            last_backup_success = e.get("timestamp", "")
+                    if operation in ("move", "review") and status == "ok":
+                        size = int(e.get("bytes") or 0)
                         moves += 1
-                        moved_bytes += int(e.get("bytes") or 0)
+                        moved_bytes += size
                         dest = e.get("destination", "")
                         ext = R.extension(dest) or "(sem extensão)"
                         cat = R.category(dest, self.store.config.get("categories"))
@@ -107,6 +125,10 @@ class Reports:
                         by_cat[cat] = by_cat.get(cat, 0) + 1
                         day = str(e.get("timestamp", ""))[:10]
                         by_day[day] = by_day.get(day, 0) + 1
+                        for key, start in periods.items():
+                            if start <= day <= end:
+                                movement_periods[key]["moves"] += 1
+                                movement_periods[key]["moved_bytes"] += size
                         rule = e.get("rule_name") or "Destino padrão"
                         by_rule[rule] = by_rule.get(rule, 0) + 1
         index = self.store.read(self.store.backup_index_path, {})
@@ -115,6 +137,10 @@ class Reports:
                 "by_category": dict(sorted(by_cat.items(), key=lambda x: -x[1])),
                 "by_rule": dict(sorted(by_rule.items(), key=lambda x: -x[1])[:12]),
                 "by_day": dict(sorted(by_day.items())[-14:]),
+                "movement_periods": movement_periods,
+                "last_organization": last_organization,
+                "last_backup": last_backup,
+                "last_backup_success": last_backup_success,
                 "backup_versions": sum(len(v) for v in index.values()),
                 "backup_bytes": sum(int(x.get("stored_bytes", 0)) for v in index.values() for x in v),
                 "pending_review": len(self.store.read(self.store.review_path, []))}
@@ -125,20 +151,41 @@ class Reports:
     def daily_pdf(self, day: str = "") -> dict:
         day = day or date.today().isoformat()
         date.fromisoformat(day)                                 # valida o formato
-        events = list(reversed(self.store.history({"date": day}, limit=20000)))
-        lines = [f"Data: {day}   |   Operações registradas: {len(events)}   |   Gerado em {now()}", ""]
+        return self.activity_pdf({"date": day}, f"relatorio_{day}.pdf", "Relatório diário")
+
+    def history_pdf(self, filters: dict) -> dict:
+        for key in ("from_date", "to_date"):
+            if filters.get(key):
+                date.fromisoformat(filters[key])
+        filename = datetime.now().strftime("historico_%Y%m%d_%H%M%S_%f.pdf")
+        return self.activity_pdf(filters, filename, "Histórico de atividades")
+
+    def activity_pdf(self, filters: dict, filename: str, title: str) -> dict:
+        events = list(reversed(self.store.history(filters, limit=20000)))
+        dates = filters.get("date") or f"{filters.get('from_date') or 'início'} até {filters.get('to_date') or 'hoje'}"
+        lines = [f"Período: {dates}   |   Operações registradas: {len(events)}   |   Gerado em {now()}"]
+        if filters.get("operation") or filters.get("operations"):
+            operations = filters.get("operations") or [filters["operation"]]
+            lines.append("Atividades: " + ", ".join(OPERATION_NAMES.get(op, op) for op in operations))
+        if filters.get("status"):
+            lines.append(f"Status: {filters['status']}")
+        if filters.get("q"):
+            lines.append(f"Busca: {filters['q']}")
+        if len(events) == 20000:
+            lines.append("Exibindo até os últimos 20.000 registros correspondentes.")
+        lines.append("")
         for e in events:
             op = OPERATION_NAMES.get(e.get("operation"), e.get("operation"))
-            lines.append(f"{e.get('timestamp', '')[11:19]}  {op}  [{e.get('status')}]  "
-                         f"{e.get('rule_name') or e.get('detail') or ''}")
+            line = str(e.get("timestamp", ""))[:19].replace("T", " ", 1)
+            detail = e.get("rule_name") or (e.get("detail") if e.get("operation") not in ("config_save", "service_start", "service_stop") else "")
+            lines.append(f"{line}  {op}  [{e.get('status')}]  {detail or ''}")
             if e.get("source"):
                 lines.append(f"     Origem:  {e['source']}")
             if e.get("destination"):
                 lines.append(f"     Destino: {e['destination']}")
             if e.get("reason"):
                 lines.append(f"     Motivo:  {e['reason']}")
-        filename = f"relatorio_{day}.pdf"
-        write_pdf(self.store.root / "reports" / filename, "OrganizaLocal - Relatório diário", lines)
+        write_pdf(self.store.root / "reports" / filename, "OrganizaLocal - " + title, lines)
         self.store.event("report", "ok", detail=filename, files=len(events))
         return {"filename": filename, "events": len(events), "path": str(self.store.root / "reports" / filename)}
 

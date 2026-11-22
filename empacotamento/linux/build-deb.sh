@@ -10,7 +10,7 @@
 #   /usr/share/icons/hicolor/256x256/apps/organizalocal.png
 # Os dados de cada usuário continuam em ~/.local/share/OrganizaLocal.
 #
-# Instalar:  dois cliques no .deb  ou  sudo apt install ./organizalocal_1.0.0_all.deb
+# Instalar:  dois cliques no .deb  ou  sudo apt install ./organizalocal_1.1.0_all.deb
 # Remover:   sudo apt remove organizalocal   (os dados do usuário são mantidos)
 # =============================================================================
 set -euo pipefail
@@ -27,10 +27,9 @@ rm -rf build && mkdir -p "$ROOT/DEBIAN" "$ROOT/opt/organizalocal" "$ROOT/usr/bin
 
 cp -r "$REPO/src/organizalocal" "$ROOT/opt/organizalocal/"
 cp -r "$REPO/web" "$ROOT/opt/organizalocal/"
-rm -rf "$ROOT/opt/organizalocal/web/downloads"
-cp "$REPO/scripts/verificar_sistema.sh" "$REPO/scripts/backup_agora.sh" "$ROOT/opt/organizalocal/"
+cp "$REPO/scripts/Linux/verificar_sistema.sh" "$REPO/scripts/Linux/backup_agora.sh" "$ROOT/opt/organizalocal/"
 find "$ROOT" -name '__pycache__' -type d -prune -exec rm -rf {} +
-cp "$REPO/installer/assets/organizalocal.png" "$ROOT/usr/share/icons/hicolor/256x256/apps/organizalocal.png"
+cp "$REPO/empacotamento/assets/organizalocal.png" "$ROOT/usr/share/icons/hicolor/256x256/apps/organizalocal.png"
 
 # Comando de terminal
 cat > "$ROOT/usr/bin/organizalocal" <<'EOF'

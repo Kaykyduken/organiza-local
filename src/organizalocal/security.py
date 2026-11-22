@@ -114,18 +114,19 @@ class Security:
         if not name:
             raise ValueError("Informe o nome do perfil.")
         perms = ["*"] if "*" in permissions else [p for p in permissions if p in PERMISSIONS]
+        if pin and (not pin.isdigit() or not 4 <= len(pin) <= 8):
+            raise ValueError("O PIN deve ter de 4 a 8 dígitos.")
         with self.store.lock:
             profile = next((p for p in self.profiles if p["name"] == name), None)
+            if not any("*" in entry or "settings" in entry
+                       for entry in [perms, *(p["permissions"] for p in self.profiles if p is not profile)]):
+                raise ValueError("Pelo menos um perfil precisa da permissão de configurações.")
             if not profile:
                 profile = {"name": name, "permissions": perms, "pin_hash": ""}
                 self.profiles.append(profile)
             profile["permissions"] = perms
             if pin:
-                if not pin.isdigit() or not 4 <= len(pin) <= 8:
-                    raise ValueError("O PIN deve ter de 4 a 8 dígitos.")
                 profile["pin_hash"] = password_hash(pin)
-            if not any("*" in p["permissions"] or "settings" in p["permissions"] for p in self.profiles):
-                raise ValueError("Pelo menos um perfil precisa da permissão de configurações.")
             self.store.save_config()
         self.store.event("profile_save", "ok", detail=name)
         return {"name": name, "permissions": perms, "has_pin": bool(profile["pin_hash"])}
