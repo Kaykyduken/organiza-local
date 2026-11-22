@@ -14,7 +14,7 @@ Orientador: Prof. Me. Deivison S. Takatu.
 | Linguagem | Python 3.10+ (somente biblioteca padrão, funciona offline) |
 
 
-![Painel do OrganizaLocal](docs/prints/d08_resultado.jpg)
+![Painel do OrganizaLocal 1.1.0](docs/prints/v11_painel.jpg)
 
 ---
 
@@ -73,10 +73,23 @@ Mais detalhes em [`docs/conceitos-so.md`](docs/conceitos-so.md).
 **Requisitos do grupo (HU01–HU12 / RF01–RF14):**
 
 - Regras por **extensão** (HU01): o formulário lê a pasta monitorada e mostra **checkboxes** com as extensões encontradas, agrupadas por categoria, com a quantidade de arquivos e um aviso quando a extensão já é usada por outra regra ativa. Regras por **palavra no nome** (HU02), com pasta de destino (RF03).
-- **Prioridade** de 0 a 10, com botões ▲/▼ e empate indicado e enviado para revisão (HU03, HU04, RF11).
+- **Prioridade** de 0 a 10, com os botões **Aumentar/Diminuir prioridade** e empate indicado e enviado para revisão (HU03, HU04, RF11).
 - **Exceções** que impedem mover ou redirecionam para outra pasta, verificadas antes da regra (HU05).
 - Consultar, editar, excluir com confirmação, ativar e desativar regras (HU06–HU09).
 - **Simulação** que não move nada (HU10), **execução** com tratamento de conflitos (HU11) e **resultado** com falhas e motivos (HU12).
+
+**Novo na versão 1.1.0 (redesenho da interface):**
+
+- **Painel "Visão geral"** com indicadores (arquivos organizados por período, regras ativas, versões de backup e fila de revisão), situação da organização automática, alertas e atividade recente.
+- **Assistente de regra em 3 etapas** (*Origem → Tipos e destino → Revisão*), com uma frase que resume o que a regra fará. A regra pode ter **pastas de origem próprias** (com ou sem subpastas) ou usar as pastas monitoradas, e pode ser **simulada antes de salvar**: só depois o usuário escolhe **Salvar e ativar** ou **Salvar desativada**.
+- **Catálogo de tipos de arquivo** agrupado por categoria, com busca, filtro (encontrados, selecionados, outros) e o botão **Detectar tipos nas pastas**.
+- **Assistente de backup em 3 etapas** (*Origem → Destino e frequência → Revisão*), com frequência diária, semanal ou a cada X horas e opções avançadas de formato, filtros e retenção.
+- **Histórico com filtros** por texto, tipo de atividade, status e período, com exportação em CSV e PDF do histórico filtrado.
+- **Seletor nativo de pasta e arquivo** no Windows (botões **Escolher pasta** / **Escolher arquivo**), além do campo de caminho.
+- Navegação reorganizada em **Painel, Regras, Organização, Backups e Histórico**, com **Ferramentas, Segurança, Sistema e Configurações** em "Recursos e controle"; ajuda contextual ("Saiba mais"), rascunhos dos assistentes preservados durante a navegação e melhorias de acessibilidade (link para pular ao conteúdo, foco nas etapas, mensagens com `role="status"`).
+- Distribuição reorganizada: instaladores prontos em [`Instaladores/`](Instaladores/), scripts de geração em [`empacotamento/`](empacotamento/) e scripts separados em [`scripts/Linux/`](scripts/Linux/) e [`scripts/Windows/`](scripts/Windows/).
+
+O histórico completo de mudanças está em [`CHANGELOG.md`](CHANGELOG.md).
 
 **Acrescentado ao pedido do grupo:**
 
@@ -206,6 +219,7 @@ python -m pytest -q
 São **92 testes automatizados** em `tests/`. Eles cobrem:
 
 - cada história de usuário (HU01–HU12);
+- os fluxos guiados da interface 1.1.0: origem própria por regra, simulação de rascunho, prévia de nomes, filtros do histórico e seletor nativo (`test_fluxos.py`);
 - integridade SHA-256 e conflitos sem sobrescrever;
 - retenção de 5 versões e versões travadas;
 - restauração e comparação de backups;
@@ -230,17 +244,30 @@ Rastreabilidade completa em [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md)
 
 ## 9. Prints e documento do projeto
 
-O documento completo do projeto (estrutura de mini TCC, com prints de cada etapa) está em [`docs/OrganizaLocal_Documento_Projeto.docx`](docs/OrganizaLocal_Documento_Projeto.docx). As capturas de tela ficam em [`docs/prints/`](docs/prints):
+O documento completo do projeto (estrutura de mini TCC, com prints de cada etapa) está em [`docs/OrganizaLocal_Documento_Projeto.docx`](docs/OrganizaLocal_Documento_Projeto.docx). As capturas de tela ficam em [`docs/prints/`](docs/prints).
+
+**Interface da versão 1.1.0:**
+
+| Etapa | Print |
+|---|---|
+| Painel (visão geral) | [`v11_painel.jpg`](docs/prints/v11_painel.jpg) |
+| Assistente de regra — 1. Origem | [`v11_regra_1_origem.jpg`](docs/prints/v11_regra_1_origem.jpg) |
+| Assistente de regra — 2. Tipos e destino | [`v11_regra_2_tipos_destino.jpg`](docs/prints/v11_regra_2_tipos_destino.jpg) |
+| Assistente de regra — 3. Revisão e simulação | [`v11_regra_3_simulacao.jpg`](docs/prints/v11_regra_3_simulacao.jpg) |
+| Lista de regras | [`v11_regras.jpg`](docs/prints/v11_regras.jpg) |
+| Simulação da organização (não move nada) | [`v11_organizacao_simulacao.jpg`](docs/prints/v11_organizacao_simulacao.jpg) |
+| Assistente de backup | [`v11_backup_assistente.jpg`](docs/prints/v11_backup_assistente.jpg) |
+| Backups com versões (uma travada 🔒) | [`v11_backups_versoes.jpg`](docs/prints/v11_backups_versoes.jpg) |
+| Histórico com filtros | [`v11_historico.jpg`](docs/prints/v11_historico.jpg) |
+
+**Terminal, instalação e versão 1.0.0** (usados no documento do projeto):
 
 | Etapa | Print |
 |---|---|
 | Instalação no Linux | [`t01_instalacao.jpg`](docs/prints/t01_instalacao.jpg) |
-| Regras com prioridade ▲/▼ | [`d06_regras_ativas.jpg`](docs/prints/d06_regras_ativas.jpg) |
-| Simulação (não move nada) | [`d07_simulacao.jpg`](docs/prints/d07_simulacao.jpg) |
-| Resultado e fila de revisão | [`d08_resultado.jpg`](docs/prints/d08_resultado.jpg) |
-| Backups com 5 versões | [`d10_backups_versoes.jpg`](docs/prints/d10_backups_versoes.jpg) |
 | Aba Sistema (conceitos de SO) | [`d15_sistema.jpg`](docs/prints/d15_sistema.jpg) |
 | Testes automatizados | [`t05_testes.jpg`](docs/prints/t05_testes.jpg) |
+| Interface antiga: resultado e fila de revisão | [`d08_resultado.jpg`](docs/prints/d08_resultado.jpg) |
 
 ## 10. Estrutura do repositório
 
@@ -256,9 +283,15 @@ organiza-local/
 │   ├── scheduler.py     # agendador (thread)
 │   ├── reports.py       # estatísticas, PDF, limites, vencimentos
 │   ├── sysinfo.py       # CPU, memória, disco, processo, variáveis de ambiente
+│   ├── native_picker.py # seletor nativo de pasta/arquivo no Windows (PowerShell)
 │   ├── server.py        # API HTTP em 127.0.0.1
 │   └── cli.py           # comandos de terminal
 ├── web/                 # site publicado na Vercel (HTML/CSS/JS)
+│   ├── index.html       # estrutura e navegação
+│   ├── app.js           # estado, API, painel, organização e histórico
+│   ├── journeys.js      # componentes de formulário e assistente de regra
+│   ├── workspace-views.js # assistente de backup, ferramentas, segurança e configurações
+│   └── styles.css
 ├── scripts/
 │   ├── Linux/           # instalação, inicialização e utilitários em Bash
 │   └── Windows/         # instalação e inicialização em Batch e PowerShell
@@ -267,6 +300,9 @@ organiza-local/
 ├── tests/               # testes automatizados
 ├── docs/                # conceitos de SO, prints e documento do projeto
 ├── vercel.json
+├── CHANGELOG.md         # histórico de versões
+├── CONTRIBUTING.md      # como trabalhar no repositório
+├── COBERTURA_REQUISITOS.md
 └── README.md
 ```
 
@@ -280,8 +316,9 @@ organiza-local/
 - Perfis e PIN controlam o painel, mas não substituem as contas de usuário do sistema operacional.
 - O site da Vercel depende do navegador permitir o acesso à rede local (Chrome/Edge recentes perguntam). Se não houver permissão, use a interface local em `http://127.0.0.1:8765`.
 - Não há criptografia dos backups.
+- O seletor nativo de pasta/arquivo só existe no Windows. No Linux, o caminho é digitado ou colado no campo.
 - Foi testado em Linux (Debian/Ubuntu). O Windows foi validado pelo código e pelos scripts, e precisa de teste na máquina de apresentação.
 
 ## 12. Possíveis melhorias
 
-Monitoramento por eventos (inotify/ReadDirectoryChangesW), backups incrementais e criptografados, ícone na bandeja do sistema, empacotamento como executável (PyInstaller) e sincronização de regras entre computadores.
+Monitoramento por eventos (inotify/ReadDirectoryChangesW), backups incrementais e criptografados, ícone na bandeja do sistema, seletor nativo de pastas também no Linux (portal XDG/zenity), empacotamento como executável (PyInstaller) e sincronização de regras entre computadores.

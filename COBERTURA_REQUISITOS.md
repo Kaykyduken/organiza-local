@@ -15,13 +15,13 @@ Este documento junta três conjuntos de requisitos:
 | HU01 Organizar por extensão | Uma ou mais extensões; pasta de destino; identifica e aplica | `rules.matches` (`extensions`) · aba Regras | `test_hu01_*` ✅ |
 | HU02 Organizar pelo nome | Palavra ou expressão; destino; qualquer posição no nome | `rules.matches` (`keywords`) | `test_hu02_*` ✅ |
 | HU03 Prioridade | Define prioridade; a maior vence; indica empate | `rules.evaluate` (`tie`) · badge "mesma prioridade" · fila de revisão | `test_hu03_*` ✅ |
-| HU04 Alterar ordem | Lista ordenada; ▲/▼; salvo e usado depois | `Organizer.change_priority`, `ordered_rules` | `test_hu04_*` ✅ |
+| HU04 Alterar ordem | Lista ordenada; botões Aumentar/Diminuir prioridade; salvo e usado depois | `Organizer.change_priority`, `ordered_rules` | `test_hu04_*` ✅ |
 | HU05 Exceções | Condições de exceção; verificadas antes; editar e excluir | `rule.exceptions` (`skip`/`move`) · editor na aba Regras | `test_hu05_*` ✅ |
 | HU06 Consultar regras | Condição, destino, prioridade, estado, possui exceções | Aba Regras · `state.rules` | `test_hu06_*` ✅ |
 | HU07 Editar regras | Altera campos; salva; vale nas próximas execuções | `save_rule(payload, id)` | `test_hu07_*` ✅ |
 | HU08 Excluir regras | Seleciona; pede confirmação; deixa de aplicar | `rule_delete` exige `confirm` · modal | `test_hu08_*` ✅ |
 | HU09 Ativar/desativar | Altera estado; desativada não aplica; estado salvo | `set_enabled` | `test_hu09_*` ✅ |
-| HU10 Simular | Mostra os arquivos correspondentes, o destino previsto e não move nada | `Organizer.simulate` · aba Organização | `test_hu10_*` ✅ |
+| HU10 Simular | Mostra os arquivos correspondentes, o destino previsto e não move nada | `Organizer.simulate` · aba Organização · etapa 3 do assistente de regra (simula o rascunho antes de salvar) | `test_hu10_*`, `test_rascunho_le_arquivos_e_avisa_empate_sem_salvar` ✅ |
 | HU11 Executar | Regras ativas, prioridades e exceções; trata existentes; informa falhas | `Organizer.organize` + `transfer` | `test_hu11_*`, `test_rnf10_*` ✅ |
 | HU12 Resultado | Quantidade organizada; falhas com motivo; não informa sucesso falso | Cartão "Resultado da organização" · `status` ok/partial/error | `test_hu12_*` ✅ |
 
@@ -33,7 +33,7 @@ Este documento junta três conjuntos de requisitos:
 | RF02 Organizar por nome | `conditions.keywords` (e também prefixo, sufixo, glob e regex) ✅ |
 | RF03 Pasta de destino | `destination` + "criar se não existir" + destino padrão + projetos ✅ |
 | RF04 Definir prioridade | 0–10 ✅ |
-| RF05 Alterar prioridade | ▲/▼ e edição ✅ |
+| RF05 Alterar prioridade | Botões Aumentar/Diminuir prioridade e edição ✅ |
 | RF06 Exceções | Não mover ou mover para outra pasta ✅ |
 | RF07 Consultar regras | Lista ordenada com condições, destino, prioridade, estado e exceções ✅ |
 | RF08 Editar regras | Formulário de edição ✅ |
@@ -48,8 +48,8 @@ Este documento junta três conjuntos de requisitos:
 
 | RNF | Como é atendido |
 |---|---|
-| RNF01 Desempenho | Varredura com `os.walk`; no mesmo disco usa `os.rename` (sem cópia); duplicados agrupam primeiro por tamanho; limite de 25 000 arquivos por varredura. Testes: 81 aprovados com `unittest` ✅ |
-| RNF02 Usabilidade | Interface web em português, formulários com exemplos, regras de exemplo prontas (desativadas), simulação antes de mover ✅ |
+| RNF01 Desempenho | Varredura com `os.walk`; no mesmo disco usa `os.rename` (sem cópia); duplicados agrupam primeiro por tamanho; limite de 25 000 arquivos por varredura. Testes: 92 aprovados com `unittest` ✅ |
+| RNF02 Usabilidade | Interface web em português; assistentes em 3 etapas para regras e backups; ajuda contextual ("Saiba mais"); regras de exemplo prontas (desativadas); simulação antes de salvar e antes de mover; seletor nativo de pasta no Windows ✅ |
 | RNF03 Segurança | `os.access` antes de mover; pasta de dados protegida; API só em 127.0.0.1 com token e origem validada; perfis/PIN; senha crítica ✅ |
 | RNF04 Confiabilidade | Cada falha registrada com motivo; `status` ok/partial/error; movimentação só é registrada como `ok` depois de conferir o SHA-256 ✅ |
 | RNF05 Integridade | SHA-256 antes e depois de cada movimentação; rollback se divergir ✅ |
@@ -139,3 +139,17 @@ Este documento junta três conjuntos de requisitos:
 - FastAPI, Uvicorn, ReportLab e rarfile foram trocados pela biblioteca padrão, para não precisar de internet nem de compilador.
 - O backup passou a ser por regras, com versões de pastas inteiras e manifesto SHA-256.
 - A quarentena automática agora é opcional (padrão desligado), já que a organização automática vem ligada. Arquivos disfarçados vão sempre para revisão.
+
+## Fluxos da interface 1.1.0
+
+O redesenho do painel (versão 1.1.0) acrescentou fluxos guiados, cobertos por `tests/test_fluxos.py`:
+
+| Fluxo | Onde | Teste |
+|---|---|---|
+| Regra com pastas de origem próprias, convivendo com regras antigas que usam as pastas monitoradas | `rule.sources` / `source_recursive` · etapa 1 do assistente | `test_escopos_distintos_e_regra_legada`, `test_edicao_por_interface_antiga_preserva_escopo` ✅ |
+| Simular o rascunho da regra sem salvar, com aviso de empate | etapa 3 do assistente | `test_rascunho_le_arquivos_e_avisa_empate_sem_salvar`, `test_teste_de_regra_inativa_usa_sua_origem` ✅ |
+| Impedir destino dentro da própria origem quando a regra inclui subpastas | `Organizer.save_rule` | `test_escopo_recursivo_impede_destino_dentro_da_origem` ✅ |
+| Filtros do histórico por período e por simulação | aba Histórico | `test_historico_filtra_periodo_e_simulacao` ✅ |
+| Prévia de renomeação sem sobrescrever arquivos | Ferramentas → renomear | `test_previa_de_nome_e_colisao_preservam_arquivo` ✅ |
+| Seletor nativo de pasta/arquivo (Windows) | `native_picker.py` · botões "Escolher pasta/arquivo" | `test_seletor_e_delegado_sem_perder_o_caminho` ✅ |
+| Perfil inválido não remove o acesso administrativo | `security.py` | `test_perfil_invalido_nao_remove_acesso_administrativo` ✅ |

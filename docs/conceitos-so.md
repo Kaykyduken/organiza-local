@@ -83,6 +83,7 @@ Este guia ajuda cada integrante a explicar, na apresentação, **onde** e **como
 
 - `archives.py`: executa `7z l -slt` ou `unrar lb` para listar RAR e 7Z.
 - `backups.py → open_folder()`: abre a pasta com `os.startfile` (Explorer) no Windows ou `xdg-open` no Linux.
+- `native_picker.py` (versão 1.1.0): no Windows, abre a janela nativa de escolha de pasta ou arquivo executando o `powershell.exe` do sistema com `-STA -EncodedCommand` (os diálogos do Windows Forms exigem uma thread *single-threaded apartment*). O processo roda sem janela (`CREATE_NO_WINDOW`), tem tempo limite de 180 s e um `threading.Lock` impede abrir duas janelas de seleção ao mesmo tempo. O caminho escolhido volta pela saída padrão do processo.
 - Os scripts Bash usam `uname`, `uptime`, `nproc`, `free`, `df`, `du`, `ps`, `pgrep`, `ls -l`, `crontab -l`, `curl`.
 
 ## 9. Registro de informações operacionais
