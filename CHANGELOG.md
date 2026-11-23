@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes do OrganizaLocal ficam registradas aqui, da versão mais nova para a mais antiga.
 
+## [1.2.0] — 23/11/2026
+
+- Origem da regra com opções explicadas, pastas monitoradas visíveis e controle de subpastas.
+- Catálogo de extensões em categorias expansíveis, com busca, contagem, filtros, seleção em lote e aviso de uso por regras ativas.
+- Botão **Enviar código** abre o código de pareamento de seis dígitos no terminal local.
+- Seletor nativo do Windows fica acessível pela barra de tarefas. Cancelar libera uma nova seleção.
+- O instalador aguarda o encerramento do serviço na atualização. O atalho recupera o painel local quando a sessão precisa de novo pareamento.
+- A troca entre painel local e site publicado navega na mesma aba após salvar e mantém a sessão.
+- Tema premium com fundo difuso animado e níveis de elevação Desativada, Normal, Média e Máxima.
+- Matriz de cobertura atualizada, testes no Ubuntu e no Windows e produção do pacote Debian no GitHub Actions.
+
 ## [1.1.0] — 22/11/2026
 
 Redesenho do painel e reorganização da distribuição.

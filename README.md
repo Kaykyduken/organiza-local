@@ -9,7 +9,7 @@ Orientador: Prof. Me. Deivison S. Takatu.
 |---|---|
 | **Instalar o programa** | [Instaladores para Windows e Linux](Instaladores/) |
 | Painel (site) | https://organiza-local.vercel.app *(abre e controla o programa local)* |
-| Versão | 1.1.0 |
+| Versão | 1.2.0 |
 | Sistemas | Windows 10/11 e Linux |
 | Linguagem | Python 3.10+ (somente biblioteca padrão, funciona offline) |
 
@@ -28,7 +28,7 @@ O **OrganizaLocal** é um serviço que roda em segundo plano e:
 2. faz **backups periódicos por regras**, guardando até **N versões** (padrão **5**) e apagando as mais antigas automaticamente;
 3. registra **tudo** num histórico local: o que foi movido, de onde, para onde, por qual regra e quando.
 
-O painel de controle é um **site publicado na Vercel**. Ao clicar no atalho do programa, o site abre já conectado ao serviço local. **Nenhum arquivo sai do computador**: o site só envia comandos para `http://127.0.0.1:8765`. Sem internet, o atalho abre a mesma interface servida pelo próprio programa.
+O painel abre no navegador, seja pela **interface local** ou pelo **site publicado na Vercel**, conforme a configuração. O serviço em `http://127.0.0.1:8765` processa os arquivos no computador. Quando o site configurado está indisponível, o atalho abre a interface local.
 
 ## 2. Integrantes
 
@@ -72,30 +72,37 @@ Mais detalhes em [`docs/conceitos-so.md`](docs/conceitos-so.md).
 
 **Requisitos do grupo (HU01–HU12 / RF01–RF14):**
 
-- Regras por **extensão** (HU01): o formulário lê a pasta monitorada e mostra **checkboxes** com as extensões encontradas, agrupadas por categoria, com a quantidade de arquivos e um aviso quando a extensão já é usada por outra regra ativa. Regras por **palavra no nome** (HU02), com pasta de destino (RF03).
+- Regras por **extensão** (HU01), por **palavra no nome** (HU02) e com pasta de destino (RF03). A detecção lê as origens da regra e mostra o total de arquivos por extensão.
 - **Prioridade** de 0 a 10, com os botões **Aumentar/Diminuir prioridade** e empate indicado e enviado para revisão (HU03, HU04, RF11).
 - **Exceções** que impedem mover ou redirecionam para outra pasta, verificadas antes da regra (HU05).
 - Consultar, editar, excluir com confirmação, ativar e desativar regras (HU06–HU09).
 - **Simulação** que não move nada (HU10), **execução** com tratamento de conflitos (HU11) e **resultado** com falhas e motivos (HU12).
 
-**Novo na versão 1.1.0 (redesenho da interface):**
+Os requisitos não funcionais (RNF01–RNF10), as extensões de escopo e os requisitos legados estão detalhados na [matriz de cobertura](COBERTURA_REQUISITOS.md).
+
+**Interface da versão 1.2.0:**
 
 - **Painel "Visão geral"** com indicadores (arquivos organizados por período, regras ativas, versões de backup e fila de revisão), situação da organização automática, alertas e atividade recente.
-- **Assistente de regra em 3 etapas** (*Origem → Tipos e destino → Revisão*), com uma frase que resume o que a regra fará. A regra pode ter **pastas de origem próprias** (com ou sem subpastas) ou usar as pastas monitoradas, e pode ser **simulada antes de salvar**: só depois o usuário escolhe **Salvar e ativar** ou **Salvar desativada**.
-- **Catálogo de tipos de arquivo** agrupado por categoria, com busca, filtro (encontrados, selecionados, outros) e o botão **Detectar tipos nas pastas**.
+- **Assistente de regra em três etapas** (*Origem → Tipos e destino → Revisão*). A etapa **Origem** oferece pastas específicas, com sua própria opção de subpastas, ou as pastas monitoradas, que acompanham as Configurações. Na revisão, é possível **Simular esta regra**, **Salvar desativada** ou, após simular em um perfil com permissão de análise, **Salvar e ativar**.
+- **Catálogo de tipos de arquivo** com grupos expansíveis, busca por extensão, filtro por categoria e por estado, contador de selecionadas e detecção nas origens. A seleção permanece ao filtrar e detectar novamente. O catálogo sinaliza as extensões usadas por outras regras ativas.
 - **Assistente de backup em 3 etapas** (*Origem → Destino e frequência → Revisão*), com frequência diária, semanal ou a cada X horas e opções avançadas de formato, filtros e retenção.
 - **Histórico com filtros** por texto, tipo de atividade, status e período, com exportação em CSV e PDF do histórico filtrado.
-- **Seletor nativo de pasta e arquivo** no Windows (botões **Escolher pasta** / **Escolher arquivo**), além do campo de caminho.
+- **Seletor nativo de pasta e arquivo** no Windows, acessível pela barra de tarefas, além do campo de caminho completo.
+- **Pareamento local.** Na tela **Conectar ao programa**, o botão **Enviar código** abre um terminal com seis dígitos para usar em **Conectar**. O terminal gráfico no Linux depende do ambiente disponível.
+- **Aparência.** Os temas base são Claro, Escuro e Neon. O **Tema premium** adiciona um fundo de luz difusa com controle de animação. A elevação dos controles oferece **Desativada**, **Normal**, **Média** e **Máxima**, com retorno visual no hover e no clique mesmo no nível desativado.
+- **Integração.** Salvar uma mudança de painel abre o endereço escolhido na mesma aba, com a sessão atual. A troca pelo site usa a interface publicada a partir desta versão.
 - Navegação reorganizada em **Painel, Regras, Organização, Backups e Histórico**, com **Ferramentas, Segurança, Sistema e Configurações** em "Recursos e controle"; ajuda contextual ("Saiba mais"), rascunhos dos assistentes preservados durante a navegação e melhorias de acessibilidade (link para pular ao conteúdo, foco nas etapas, mensagens com `role="status"`).
 - Distribuição reorganizada: instaladores prontos em [`Instaladores/`](Instaladores/), scripts de geração em [`empacotamento/`](empacotamento/) e scripts separados em [`scripts/Linux/`](scripts/Linux/) e [`scripts/Windows/`](scripts/Windows/).
 
 O histórico completo de mudanças está em [`CHANGELOG.md`](CHANGELOG.md).
 
+O site da Vercel e os pacotes de [`Instaladores/`](Instaladores/) refletem a revisão de suas respectivas publicações.
+
 **Acrescentado ao pedido do grupo:**
 
 - Organização automática **de hora em hora** (configurável: minutos, diária, semanal ou desligada).
-- **Backups por regras**: origens, destino (inclusive HD externo), filtros, intervalo, **máximo de versões (padrão 5)**, ZIP ou cópia de pastas. Também é possível travar versões, restaurar (tudo ou um arquivo), comparar e verificar a integridade.
-- **Formato real** do arquivo lido dos primeiros bytes: um executável disfarçado de `.jpg` vai para a revisão.
+- **Backups por regras** com origens, destino (inclusive HD externo), filtros, horários, **retenção de cinco versões por padrão**, ZIP ou cópia de pastas. Também é possível travar versões, restaurar a versão inteira ou um arquivo, comparar e verificar a integridade.
+- **Formato real** lido dos primeiros bytes. Um executável disfarçado de `.jpg` vai para revisão por padrão ou para quarentena quando essa opção está ativa.
 - **Instalador** que cria a pasta do aplicativo, o atalho e o início automático.
 
 **Mantido da versão 0.9:**
@@ -103,10 +110,9 @@ O histórico completo de mudanças está em [`CHANGELOG.md`](CHANGELOG.md).
 - Categorias e projetos; glob, regex, tamanho e datas; renomear com modelo (`{date}_{name}`).
 - Quarentena, caminhos protegidos e exclusões globais; perfis com PIN e senha para operações críticas.
 - Fila de revisão e desfazer movimentações; duplicados por SHA-256; classificação sugerida; sandbox de regras.
-- ZIP, TAR, RAR e 7Z: inspeção de todos; extração segura de ZIP e TAR.
+- Inspeção e extração de ZIP e TAR. A listagem de 7Z e RAR depende de 7-Zip ou, para RAR, de `unrar`.
 - Relatório diário em PDF; limites de espaço; vencimentos de documentos; observações.
 - Detecção de alterações externas; versões, importação e exportação da configuração.
-- Temas claro, escuro e neon; pareamento por código.
 
 ## 6. Instalação e execução
 
@@ -116,8 +122,8 @@ Abra a pasta [Instaladores](Instaladores/) na raiz do projeto e escolha o arquiv
 
 | Sistema | Arquivo | Como instalar |
 |---|---|---|
-| **Windows 10/11** | [OrganizaLocal-Setup-1.1.0.exe](Instaladores/OrganizaLocal-Setup-1.1.0.exe) (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
-| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | [organizalocal_1.1.0_all.deb](Instaladores/organizalocal_1.1.0_all.deb) | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.1.0_all.deb` na pasta Instaladores |
+| **Windows 10/11** | [OrganizaLocal-Setup-1.2.0.exe](Instaladores/OrganizaLocal-Setup-1.2.0.exe) (9 MB, **Python já incluído**) | Dois cliques → Próximo → Instalar → Concluir. Não precisa de administrador. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | [organizalocal_1.2.0_all.deb](Instaladores/organizalocal_1.2.0_all.deb) | Dois cliques no arquivo, ou `sudo apt install ./organizalocal_1.2.0_all.deb` na pasta Instaladores |
 
 **Instalador do Windows:**
 
@@ -171,7 +177,7 @@ Depois, acesse `http://127.0.0.1:8765`.
 
 O seletor nativo de pasta ou arquivo é oferecido no Windows. O campo de caminho completo também está disponível. Regras salvas antes do assistente continuam usando as pastas monitoradas e podem receber uma origem própria ao editar. Os rascunhos dos assistentes ficam na sessão enquanto você navega pelo painel.
 
-Para escolher o que o ícone do OrganizaLocal abre, vá a **Configurações → Integração**, escolha **Painel local** ou **Site publicado** e salve.
+Em **Configurações → Integração → Painel padrão**, escolha **Painel local** ou **Site publicado**. Ao salvar uma troca, a aba navega para o endereço escolhido. O atalho também passa a usar essa preferência.
 
 ### Publicação na Vercel
 
@@ -216,14 +222,14 @@ python -m unittest discover -s tests -q  # recomendado; não exige dependências
 python -m pytest -q
 ```
 
-São **92 testes automatizados** em `tests/`. Eles cobrem:
+São **102 testes automatizados** em `tests/`, executados no Windows na revisão atual. A suíte cobre:
 
 - cada história de usuário (HU01–HU12);
-- os fluxos guiados da interface 1.1.0: origem própria por regra, simulação de rascunho, prévia de nomes, filtros do histórico e seletor nativo (`test_fluxos.py`);
+- a lógica dos fluxos guiados, incluindo origem própria, simulação de rascunho, prévia de nomes, filtros do histórico, delegação ao seletor nativo e persistência da aparência (`test_fluxos.py`);
 - integridade SHA-256 e conflitos sem sobrescrever;
 - retenção de 5 versões e versões travadas;
 - restauração e comparação de backups;
-- API (token, CORS, origem bloqueada, pareamento, permissões de perfil);
+- API e abertura do painel, incluindo token, CORS, troca de origem, pareamento, permissões de perfil e comandos do atalho;
 - extração ZIP com bloqueio de `../`, PDF, agendador e migração da versão 0.9.
 
 Cada teste roda numa pasta temporária isolada.
