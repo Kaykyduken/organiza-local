@@ -40,7 +40,8 @@ class TestServidor(TempEnv):
             with urllib.request.urlopen(req, timeout=5) as r:
                 return r.status, dict(r.headers), r.read()
         except urllib.error.HTTPError as e:
-            return e.code, dict(e.headers), e.read()
+            with e:
+                return e.code, dict(e.headers), e.read()
 
     def test_ping_publico(self):
         status, _, body = self.request("/api/ping")

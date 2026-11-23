@@ -84,7 +84,7 @@ class TestFluxos(TempEnv):
 
     def test_previa_de_nome_e_colisao_preservam_arquivo(self):
         file = make_file(self.downloads / "nota.txt")
-        target = self.downloads / "revisada-nota.txt"
+        target = self.downloads.resolve() / "revisada-nota.txt"
         preview = self.org.rename_preview(str(file), "revisada-{name}")
         self.assertEqual(Path(preview["destination"]), target)
         self.assertTrue(file.is_file())

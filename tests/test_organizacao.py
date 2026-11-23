@@ -1,6 +1,7 @@
 """Testes da organização: HU06–HU12, RNF04, RNF05, RNF09 e RNF10."""
 import json
 import unittest
+from pathlib import Path
 
 from helpers import TempEnv, make_file
 from organizalocal.storage import sha256
@@ -219,7 +220,7 @@ class TestFerramentas(TempEnv):
     def test_exportar_simulacao(self):
         make_file(self.downloads / "a.pdf")
         out = self.app.reports.export_simulation(self.org.simulate())
-        self.assertIn("rows", json.loads(open(out["path"], encoding="utf-8").read()))
+        self.assertIn("rows", json.loads(Path(out["path"]).read_text(encoding="utf-8")))
 
 
 if __name__ == "__main__":
