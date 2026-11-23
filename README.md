@@ -222,7 +222,7 @@ python -m unittest discover -s tests -q  # recomendado; não exige dependências
 python -m pytest -q
 ```
 
-São **102 testes automatizados** em `tests/`, executados no Windows na revisão atual. A suíte cobre:
+São **102 testes automatizados** em `tests/`, executados no Windows e no Ubuntu. A suíte cobre:
 
 - cada história de usuário (HU01–HU12);
 - a lógica dos fluxos guiados, incluindo origem própria, simulação de rascunho, prévia de nomes, filtros do histórico, delegação ao seletor nativo e persistência da aparência (`test_fluxos.py`);

@@ -1,3 +1,4 @@
 1ccc232886995f1bde9c21985b38bdff7444d16997a006118d6d0d7f7d906e0c  organizalocal_1.1.0_all.deb
+cd63ff6bd3cb385425479667eba57d06e300079469635b569f0b56d3a561d6f5  organizalocal_1.2.0_all.deb
 22d7f70b4aa78c2e29c7bc6c6678baba288ede67fb9939327b43ec8eac991f89  OrganizaLocal-Setup-1.1.0.exe
 cc64d3b3eff825688b6f16c74c15be11497f9e2bd7244abf63e15e551cd0acbd  OrganizaLocal-Setup-1.2.0.exe

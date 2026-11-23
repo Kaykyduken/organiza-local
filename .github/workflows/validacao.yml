@@ -32,6 +32,19 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash empacotamento/linux/build-deb.sh
       - run: dpkg-deb --info dist/*.deb
+      - name: Testar o pacote instalado
+        run: |
+          sudo dpkg -i dist/*.deb
+          export ORGANIZALOCAL_DATA="$RUNNER_TEMP/organizalocal"
+          export ORGANIZALOCAL_PORT=8799
+          organizalocal serve --no-browser > "$RUNNER_TEMP/organizalocal.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --retry 10 --retry-delay 1 --retry-connrefused \
+            "http://127.0.0.1:$ORGANIZALOCAL_PORT/api/ping"
+          organizalocal status
+          organizalocal stop
+          wait "$pid"
       - uses: actions/upload-artifact@v4
         with:
           name: instalador-linux

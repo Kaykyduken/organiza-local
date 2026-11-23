@@ -55,7 +55,7 @@ Os testes de motor e de API exercitam regras, persistência e permissões. Os fl
 | RNF03 Segurança | Pastas protegidas e verificação de acesso. API em `127.0.0.1`, origem validada e token nas ações autenticadas. Pareamento restrito às origens aceitas, perfis com PIN e senha para operações críticas. `test_acao_sem_token_e_negada`, `test_origem_desconhecida_bloqueada`, `test_perfil_com_pin` e `test_senha_critica` ✅ |
 | RNF04 Confiabilidade | Registra falhas de movimentação com motivo, informa resultado completo, parcial ou com erro e contabiliza sucesso após conferir o SHA-256. `test_hu12_falha_e_informada_e_nao_conta_como_sucesso` ✅ |
 | RNF05 Integridade | Verifica o SHA-256 na origem e no destino. Entre volumes, verifica a cópia antes de remover a origem. Confere o conteúdo em `test_hu11_executa_e_preserva_conteudo`. A verificação em volumes físicos distintos e a injeção de falhas de integridade ficam pendentes ☑️ |
-| RNF06 Compatibilidade | Windows 10/11 e Linux com Python 3.10+. A suíte atual foi executada no Windows. Houve verificações anteriores no Linux. A abertura de um terminal gráfico no Linux e a validação integral da instalação atual nas plataformas alvo ficam pendentes ☑️ |
+| RNF06 Compatibilidade | Windows 10/11 e Linux com Python 3.10+. A suíte atual passou no Windows e no Ubuntu. A abertura de um terminal gráfico no Linux e a validação integral da instalação atual nas plataformas alvo ficam pendentes ☑️ |
 | RNF07 Manutenibilidade | Módulos separados por responsabilidade, instruções de contribuição e 102 testes automatizados executados com `unittest` ✅ |
 | RNF08 Persistência | Escrita atômica de `config.json`, versões, restauração e exportação. `test_versoes_da_configuracao`, `test_exportar_importar` e testes das preferências de aparência ✅ |
 | RNF09 Recuperação de erros | Mensagens para permissão, dados inválidos, arquivo em uso e falta de espaço. Os testes cobrem falhas de movimentação e de abertura do navegador. Parte dos erros de sistema depende de reprodução no ambiente ☑️ |
@@ -163,7 +163,7 @@ Use esta tabela para conferir os fluxos que evoluíram após os requisitos origi
 
 ## 7. Validação reproduzível
 
-Execute `python -m unittest discover -s tests -q` na raiz. A suíte atual passou com **102 testes no Windows**.
+Execute `python -m unittest discover -s tests -q` na raiz. A suíte atual passou com **102 testes no Windows e no Ubuntu**.
 
 Para repetir as verificações de interface:
 
