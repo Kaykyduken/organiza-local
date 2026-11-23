@@ -65,9 +65,9 @@ python -m unittest discover -s tests -q  # recomendado; sem instalar nada
 python -m pytest -q
 ```
 
-Hoje são **92 testes** e todos devem passar. Cada teste roda numa pasta temporária, então nada no seu computador é mexido. **Mudou um comportamento? Ajuste ou crie o teste correspondente.** Os nomes dos testes citam a história de usuário (por exemplo `test_hu10_...`). Se o seu teste cobrir um requisito, atualize também o [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md).
+São **102 testes**. Cada teste roda numa pasta temporária. Ao mudar um comportamento, ajuste ou crie o teste correspondente. Quando um teste cobrir um requisito, atualize também a [matriz de cobertura](COBERTURA_REQUISITOS.md).
 
-Não há CI automatizado configurado no repositório. Antes de abrir um pull request, rode o comando recomendado e informe o resultado. A validação do Windows é parcial até que o instalador e o fluxo de autostart sejam executados em Windows real.
+Antes de abrir um pull request, rode o comando recomendado e informe o resultado. O GitHub Actions roda os testes no Ubuntu e no Windows e disponibiliza o pacote Debian após a validação. Instalação, início automático e interface gráfica têm verificações próprias, descritas na matriz de cobertura.
 
 ## 5. O fluxo de uma tarefa
 

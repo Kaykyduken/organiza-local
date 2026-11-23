@@ -84,7 +84,7 @@ class TestFluxos(TempEnv):
 
     def test_previa_de_nome_e_colisao_preservam_arquivo(self):
         file = make_file(self.downloads / "nota.txt")
-        target = self.downloads / "revisada-nota.txt"
+        target = self.downloads.resolve() / "revisada-nota.txt"
         preview = self.org.rename_preview(str(file), "revisada-{name}")
         self.assertEqual(Path(preview["destination"]), target)
         self.assertTrue(file.is_file())
@@ -99,6 +99,34 @@ class TestFluxos(TempEnv):
         with patch("organizalocal.server.native_picker.select_path", return_value=chosen) as picker:
             self.assertEqual(self.app.dispatch("select_path", {"kind": "folder"}), chosen)
         picker.assert_called_once_with("folder")
+
+    def test_tema_premium_persiste_e_mantem_o_tema_base(self):
+        self.assertFalse(self.app.state()["config"]["premium_theme"])
+        self.assertTrue(self.app.state()["config"]["premium_motion"])
+        self.app.dispatch("config_update", {"changes": {"theme": "neon", "premium_theme": True, "premium_motion": False}})
+        snapshot = self.app.export_config()["data"]
+        self.assertTrue(self.app.store.read(self.app.store.config_path, {})["premium_theme"])
+        self.assertFalse(self.app.store.read(self.app.store.config_path, {})["premium_motion"])
+        self.app.dispatch("config_update", {"changes": {"premium_theme": False, "premium_motion": True}})
+        self.assertEqual(self.app.state()["config"]["theme"], "neon")
+        self.assertFalse(self.app.state()["config"]["premium_theme"])
+        self.app.import_config(snapshot)
+        self.assertTrue(self.app.state()["config"]["premium_theme"])
+        self.assertFalse(self.app.state()["config"]["premium_motion"])
+        with self.assertRaisesRegex(ValueError, "Tema premium"):
+            self.app.update_config({"premium_motion": "false"})
+
+    def test_elevacao_dos_controles_permite_desligar_e_restaurar(self):
+        self.assertEqual(self.app.state()["config"]["control_elevation"], "medium")
+        for level in ("off", "normal", "medium", "max"):
+            self.app.dispatch("config_update", {"changes": {"control_elevation": level}})
+            self.assertEqual(self.app.store.read(self.app.store.config_path, {})["control_elevation"], level)
+        snapshot = self.app.export_config()["data"]
+        self.app.update_config({"control_elevation": "off"})
+        self.app.import_config(snapshot)
+        self.assertEqual(self.app.state()["config"]["control_elevation"], "max")
+        with self.assertRaisesRegex(ValueError, "elevação"):
+            self.app.update_config({"control_elevation": "invalid"})
 
     def test_perfil_invalido_nao_remove_acesso_administrativo(self):
         before = self.app.security.active_profile().copy()

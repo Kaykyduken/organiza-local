@@ -445,9 +445,27 @@ function viewConfig() {
           <label class="two">Modelo de nome ao mover<input name="rename_pattern" id="configRename" value="${esc(c.rename_pattern)}" placeholder="{date}_{name}.{ext}"></label>
           <p class="small muted full">Exemplo: notas.pdf → <output id="configRenameExample">${esc(renameExample(c.rename_pattern))}</output></p></div></details>`, 'id="conflictSettings"')}
       ${section('Backups e retenção', `<label>Versões padrão para novas rotinas<input name="default_max_versions" type="number" min="1" max="100" value="${c.default_max_versions}"></label><p class="small muted">Cada rotina pode escolher um limite próprio.</p>${dashboardLink('backups', 'Gerenciar rotinas de backup')}`, 'id="backupSettings"')}
-      ${section('Aparência', `<label>Tema<select name="theme">${[['claro', 'Claro'], ['escuro', 'Escuro'], ['neon', 'Neon']].map(([key, name]) => `<option value="${key}"${selected(key, c.theme)}>${name}</option>`).join('')}</select></label>`, 'id="appearanceSettings"')}
-      ${section('Integração', `<label>O que abrir ao clicar no ícone do OrganizaLocal<select name="launch_mode" id="launchMode"><option value="local" ${c.site_url ? '' : 'selected'}>Painel local</option><option value="web" ${c.site_url ? 'selected' : ''}>Site publicado</option></select></label>
-        <label data-site-field ${c.site_url ? '' : 'hidden'}>URL do site publicado na Vercel<input name="site_url" value="${esc(c.site_url)}" placeholder="https://organiza-local.vercel.app" type="url" ${c.site_url ? '' : 'disabled'}></label>
+      ${section('Aparência', `<div class="appearance-controls">
+        <label>Tema base<select name="theme">${[['claro', 'Claro'], ['escuro', 'Escuro'], ['neon', 'Neon']].map(([key, name]) => `<option value="${key}"${selected(key, c.theme)}>${name}</option>`).join('')}</select></label>
+        ${supported('control_elevation') ? `<label>Elevação dos botões
+          <select name="control_elevation" aria-describedby="elevation-setting-help">${[['off', 'Desativada'], ['normal', 'Normal'], ['medium', 'Média'], ['max', 'Máxima']].map(([key, name]) => `<option value="${key}"${selected(key, c.control_elevation)}>${name}</option>`).join('')}</select>
+          <small id="elevation-setting-help">Controla o zoom, a sombra e o brilho ao passar o mouse.</small>
+        </label>` : ''}
+        </div>
+        <label class="premium-setting">
+          <span class="premium-setting-sample" aria-hidden="true"></span>
+          <span><strong id="premium-theme-label">Tema premium</strong><small id="premium-theme-help">${supported('premium_theme')
+            ? 'Ativa o fundo de cores difusas por todo o painel. Escolha abaixo se ele fica animado.'
+            : 'Atualize o OrganizaLocal para usar o fundo neon animado.'}</small></span>
+          <input type="checkbox" name="premium_theme" role="switch" aria-labelledby="premium-theme-label" aria-describedby="premium-theme-help" ${c.premium_theme ? 'checked' : ''} ${supported('premium_theme') ? '' : 'disabled'}>
+        </label>
+        ${supported('premium_motion') ? `<label class="check premium-motion-setting">
+          <input type="checkbox" name="premium_motion" ${c.premium_motion !== false ? 'checked' : ''}>
+          <span><strong>Animar o fundo</strong><small>Controla o movimento das cores quando o Tema premium está ativo.</small></span>
+        </label>` : ''}`, 'id="appearanceSettings"')}
+      ${section('Integração', `<label>Painel padrão<select name="launch_mode" id="launchMode" aria-describedby="launch-mode-help"><option value="local" ${c.site_url ? '' : 'selected'}>Painel local</option><option value="web" ${c.site_url ? 'selected' : ''}>Site publicado</option></select></label>
+        <p id="launch-mode-help" class="small muted">Ao mudar de painel e salvar, esta aba abre o endereço escolhido. O atalho do programa também passa a usar essa preferência.</p>
+        <label data-site-field ${c.site_url ? '' : 'hidden'}>URL do site publicado na Vercel<input name="site_url" value="${esc(c.site_url || 'https://organiza-local.vercel.app')}" type="url" ${c.site_url ? '' : 'disabled'}></label>
         <details class="wizard-advanced"><summary>Origens autorizadas</summary><p class="small muted">O painel local funciona no próprio computador. Autorize outros endereços apenas quando precisar que se comuniquem com o serviço.</p>
           <label>Outras origens autorizadas (uma por linha)<textarea name="extra_origins">${esc((c.extra_origins || []).join('\n'))}</textarea></label></details>`, 'id="integrationSettings"')}
       <div class="settings-save"><div><strong id="settingsStatus" role="status">Configurações salvas</strong><p class="field-error" data-form-error role="alert" tabindex="-1" hidden></p></div>
@@ -478,6 +496,17 @@ async function saveSettings(form) {
   formError(form);
   if (hasPendingPath(form)) return formError(form, 'Adicione a pasta digitada antes de salvar.');
   if (mode === 'web' && !site) return formError(form, 'Informe a URL do site ou selecione Painel local.');
+  let panel;
+  try {
+    panel = mode === 'web' ? new URL(site) : new URL('/', API);
+    if (!['http:', 'https:'].includes(panel.protocol) || panel.username || panel.password ||
+        (mode === 'local' && !['127.0.0.1', 'localhost'].includes(panel.hostname))) {
+      throw new Error();
+    }
+    panel.hash = '';
+  } catch {
+    return formError(form, 'Informe um endereço HTTP ou HTTPS válido para o painel.');
+  }
   const sch = c.organize_schedule;
   const changes = {
     watch_dirs: data.getAll('watch_dirs'), recursive: data.has('recursive'), organize_on_start: data.has('organize_on_start'),
@@ -486,9 +515,12 @@ async function saveSettings(form) {
       weekday: frequency === 'weekly' ? Number(data.get('weekday')) : sch.weekday },
     conflict_policy: data.get('conflict_policy'), min_file_age_seconds: Number(data.get('min_file_age_seconds')),
     default_destination: data.get('default_destination').trim(), rename_pattern: data.get('rename_pattern'),
-    default_max_versions: Number(data.get('default_max_versions')), site_url: mode === 'local' ? '' : site,
+    default_max_versions: Number(data.get('default_max_versions')), site_url: mode === 'local' ? '' : panel.href.replace(/\/+$/, ''),
     theme: data.get('theme'), extra_origins: lines(data.get('extra_origins')),
   };
+  if (supported('premium_theme')) changes.premium_theme = data.has('premium_theme');
+  if (supported('premium_motion')) changes.premium_motion = data.has('premium_motion');
+  if (supported('control_elevation')) changes.control_elevation = data.get('control_elevation');
   const submit = $('#settingsSubmit');
   UI.savingConfig = true;
   submit.disabled = true;
@@ -496,10 +528,12 @@ async function saveSettings(form) {
     const config = await call('config_update', { changes });
     UI.configDirty = false;
     toast('Configurações salvas.');
-    if (!IS_LOCAL && mode === 'local' && !(config.extra_origins || []).includes(location.origin)) {
-      S.config = config;
-      render();
-      showModal('Painel local selecionado', '<p>As configurações foram salvas. Clique no ícone do OrganizaLocal para abrir o painel local.</p>', false);
+    const savedSiteChanged = config.site_url !== (c.site_url || '');
+    const alreadyAtDestination = panel.origin === location.origin && (mode === 'local' ||
+      (panel.pathname === location.pathname && panel.search === location.search));
+    if (savedSiteChanged && !alreadyAtDestination) {
+      panel.hash = new URLSearchParams({ token: TOKEN, api: API });
+      location.replace(panel);
       return;
     }
     await refresh();
@@ -510,7 +544,7 @@ async function saveSettings(form) {
 }
 
 function hasPendingPath(form) {
-  return $$('.path-list [data-path-input]', form).some(input => input.value.trim());
+  return $$('.path-list [data-path-input]', form).some(input => !input.closest('[data-scoped][hidden]') && input.value.trim());
 }
 
 async function preserveDraftOnLeave() {

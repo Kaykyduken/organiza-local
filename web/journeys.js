@@ -7,8 +7,10 @@ const pathName = path => String(path || '').replace(/[\\/]+$/, '').split(/[\\/]/
 const supported = feature => Boolean(S.app.features?.[feature]);
 const section = (title, content, extra = '') => `<section class="card workspace-section" ${extra}><h2>${title}</h2>${content}</section>`;
 
+let selectingNativePath = false;
+
 function pickerButton(kind, label) {
-  return supported('native_picker') ? `<button type="button" data-act="path-picker" data-kind="${kind}">${label}</button>` : '';
+  return supported('native_picker') ? `<button type="button" data-act="path-picker" data-kind="${kind}" ${selectingNativePath ? 'disabled' : ''}>${label}</button>` : '';
 }
 
 function pathField({ label, name = '', id = '', value = '', kind = 'folder', placeholder = 'Caminho completo' }) {
@@ -59,20 +61,29 @@ function addPath(field, value) {
 }
 
 async function chooseNativePath(button) {
+  if (selectingNativePath || button.disabled) return;
   const field = button.closest('.path-field');
   const label = button.textContent;
-  if (button.disabled) return;
-  button.disabled = true;
-  button.textContent = 'Aguardando janela…';
+  const feedback = $('[data-path-error]', field);
+  if (feedback) feedback.hidden = true;
+  selectingNativePath = true;
+  $$('[data-act="path-picker"]').forEach(control => { control.disabled = true; });
+  button.textContent = 'Aguardando seleção…';
   try {
     const { path } = await call('select_path', { kind: button.dataset.kind });
     if (path && field.isConnected) addPath(field, path);
   } catch (error) {
-    toast(error.message, true);
-    if (field.isConnected) $('[data-path-input]', field).focus();
+    if (feedback && field.isConnected) {
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+    } else {
+      toast(error.message, true);
+    }
   } finally {
+    selectingNativePath = false;
     button.textContent = label;
-    button.disabled = false;
+    $$('[data-act="path-picker"]').forEach(control => { control.disabled = false; });
+    if (button.isConnected && document.activeElement === document.body) button.focus();
   }
 }
 
@@ -99,7 +110,12 @@ function setDraftDirty(form) {
     }
     $('[data-act=rule-preview]', form).classList.add('primary');
     const scoped = $('[name=sourceMode]:checked', form)?.value === 'scoped';
-    $('[data-scoped]', form).hidden = !scoped;
+    const specific = $('[data-scoped]', form);
+    const hideSpecific = !scoped;
+    if (UI.ruleStep === 1 && specific.hidden !== hideSpecific) formError(form);
+    specific.hidden = hideSpecific;
+    const monitored = $('[data-monitored]', form);
+    if (monitored) monitored.hidden = scoped;
     updateRuleSentence(form);
   }
   if (form?.id === 'backupForm') UI.backupDirty = true;
@@ -120,7 +136,7 @@ const FILE_GROUPS = {
 const fileGroupSearch = { Documentos: 'word texto acrobat', Planilhas: 'excel calculo números', Apresentações: 'powerpoint slides', Imagens: 'fotos fotografia', Áudios: 'som músicas' };
 const extensionList = text => [...new Set(csv(text).map(ext => '.' + ext.toLowerCase().replace(/^\.+/, '')))];
 
-function catalogHtml(inventory, selected) {
+function catalogHtml(inventory, selected, ruleId) {
   const detected = new Map((inventory?.extensions || []).map(item => [item.ext, item]));
   const groups = new Map(Object.entries(FILE_GROUPS).map(([name, values]) => [name, values.split(' ').map(v => '.' + v)]));
   const included = new Set([...groups.values()].flat());
@@ -133,38 +149,78 @@ function catalogHtml(inventory, selected) {
   return [...groups].map(([group, extensions], index) => {
     const chips = extensions.map(ext => {
       const item = detected.get(ext);
+      const otherRules = (inventory?.used_by?.[ext] || item?.used_by || []).filter(rule => rule.id !== ruleId);
+      const usage = otherRules.length === 1 ? `Usada em ${otherRules[0].name}` : `Usada em ${otherRules.length} regras ativas`;
       return `<label class="extchip ${selected.has(ext) ? 'on' : ''}" data-ext="${esc(ext)}" data-found="${item?.count || 0}" title="${esc(item?.examples?.join(', ') || '')}">
-        <input type="checkbox" name="ext" value="${esc(ext)}" ${selected.has(ext) ? 'checked' : ''}><span>${esc(ext)}</span>${item ? `<small>${item.count} encontrado(s)</small>` : ''}</label>`;
+        <input type="checkbox" name="ext" value="${esc(ext)}" ${selected.has(ext) ? 'checked' : ''}><span class="mono">${esc(ext)}</span>${item ? `<small>${item.count} ${item.count === 1 ? 'arquivo' : 'arquivos'}</small>` : ''}
+        ${otherRules.length ? `<small class="ext-usage" title="${esc(otherRules.map(rule => rule.name).join(', '))}">${esc(usage)}</small>` : ''}</label>`;
     }).join('');
-    return `<details class="type-group" data-search="${esc(group + ' ' + (fileGroupSearch[group] || ''))}" data-common="${Object.hasOwn(FILE_GROUPS, group)}" ${index === 0 || extensions.some(v => selected.has(v)) ? 'open' : ''}>
-      <summary><strong>${esc(group)}</strong><small>${esc(extensions.slice(0, 4).join(', '))}</small></summary>
-      ${group === 'Instaladores' ? '<p class="small muted">A política de quarentena continua valendo para executáveis.</p>' : ''}
-      <div class="extchips">${chips}</div>
-      <button type="button" class="linkbtn" data-act="ext-group">Marcar ou desmarcar o grupo</button>
+    return `<details class="type-group" data-category="${esc(group)}" data-search="${esc(group + ' ' + (fileGroupSearch[group] || ''))}" data-common="${Object.hasOwn(FILE_GROUPS, group)}" ${index === 0 || extensions.some(v => selected.has(v)) ? 'open' : ''}>
+      <summary><strong>${esc(group)}</strong><span class="type-group-count" data-type-count></span></summary>
+      <div class="type-group-body">
+        ${group === 'Instaladores' ? '<p class="small muted">A política de quarentena continua valendo para executáveis.</p>' : ''}
+        <div class="extchips">${chips}</div>
+        <button type="button" class="linkbtn" data-act="ext-group"></button>
+      </div>
     </details>`;
   }).join('');
+}
+
+function syncCatalogCategories(form) {
+  const control = $('#extCategory', form);
+  const category = control.value;
+  control.replaceChildren(new Option('Todas as categorias', ''));
+  $$('.type-group', form).forEach(group => {
+    control.add(new Option(group.dataset.category, group.dataset.category));
+  });
+  if ([...control.options].some(option => option.value === category)) control.value = category;
+  filterCatalog(form);
 }
 
 function filterCatalog(form) {
   const query = normalizeSearch($('#extFilter', form).value);
   const mode = $('#extMode', form).value;
+  const category = $('#extCategory', form).value;
   let shown = 0;
+  let selectedCount = 0;
   $$('.type-group', form).forEach(group => {
+    const inCategory = !category || category === group.dataset.category;
     const titleMatch = normalizeSearch(group.dataset.search).includes(query);
-    const chips = $$('.extchip', group);
-    for (const chip of chips) {
-      chip.hidden = !(titleMatch || normalizeSearch(chip.dataset.ext).includes(query)) ||
+    let checked = 0;
+    let visible = 0;
+    let checkedVisible = 0;
+    for (const chip of $$('.extchip', group)) {
+      const marked = $('input', chip).checked;
+      if (marked) checked += 1;
+      chip.hidden = !inCategory || !(titleMatch || normalizeSearch(chip.dataset.ext).includes(query)) ||
         (mode === 'found' && Number(chip.dataset.found) === 0) ||
-        (mode === 'selected' && !$('input', chip).checked) ||
+        (mode === 'selected' && !marked) ||
         (mode === 'other' && group.dataset.common === 'true');
+      if (!chip.hidden) {
+        visible += 1;
+        if (marked) checkedVisible += 1;
+      }
     }
-    group.hidden = !chips.some(chip => !chip.hidden);
+    selectedCount += checked;
+    group.hidden = visible === 0;
+    $('[data-type-count]', group).textContent = checked
+      ? `${checkedVisible} de ${visible} marcadas`
+      : `${visible} ${visible === 1 ? 'tipo' : 'tipos'}`;
+    $('[data-act=ext-group]', group).textContent = checkedVisible === visible ? 'Desmarcar exibidas' : 'Marcar exibidas';
     if (!group.hidden) {
       shown += 1;
-      if (query || mode !== 'all') group.open = true;
+      if (query || category || mode !== 'all') group.open = true;
     }
   });
+  $('[data-selected-types]', form).textContent = `${selectedCount} ${selectedCount === 1 ? 'extensão selecionada' : 'extensões selecionadas'}`;
   $('[data-empty-types]', form).hidden = shown !== 0;
+}
+
+function catalogInventoryStatus(inventory) {
+  if (!inventory) return '';
+  const { total_files: total, without_extension: withoutExtension } = inventory;
+  const scanned = total === 1 ? '1 arquivo analisado' : `${total} arquivos analisados`;
+  return withoutExtension ? `${scanned} · ${withoutExtension} sem extensão` : scanned;
 }
 
 async function refreshCatalog(form) {
@@ -184,9 +240,9 @@ async function refreshCatalog(form) {
     if (!form.isConnected) return;
     UI.extInv = inventory;
     const marked = new Set(new FormData(form).getAll('ext'));
-    $('#extPicker', form).innerHTML = catalogHtml(inventory, marked);
-    indicator.textContent = `${inventory.total_files} arquivo(s) analisado(s) · ${inventory.without_extension} sem extensão`;
-    filterCatalog(form);
+    $('#extPicker', form).innerHTML = catalogHtml(inventory, marked, UI.ruleForm?.id);
+    indicator.textContent = catalogInventoryStatus(inventory);
+    syncCatalogCategories(form);
   } catch (error) {
     if (form.isConnected) indicator.textContent = error.message;
   } finally { button.disabled = false; }
@@ -198,7 +254,9 @@ function normalizeSearch(value) {
 
 function rulePorts(rule) {
   const project = S.config.projects?.find(item => item.id === rule.project_id);
-  return { origins: rule.sources?.length ? rule.sources : S.config.watch_dirs, destination: project?.directory || rule.destination };
+  const sources = rule.sources || [];
+  return { origins: rule.sourceMode === 'scoped' || sources.length ? sources : S.config.watch_dirs,
+    destination: project?.directory || rule.destination };
 }
 
 function ruleSentence(rule) {
@@ -214,11 +272,76 @@ function updateRuleSentence(form) {
   const f = new FormData(form);
   const subfolder = String(f.get('subfolder') || '').trim();
   const destination = String(f.get('destination') || '');
-  const draft = { ...UI.ruleForm, sources: f.get('sourceMode') === 'scoped' ? f.getAll('sources') : [],
+  const sourceMode = f.get('sourceMode');
+  const draft = { ...UI.ruleForm, sourceMode, sources: sourceMode === 'scoped' ? f.getAll('sources') : [],
     project_id: f.get('project_id'), destination: subfolder && destination ? destination + '/' + subfolder : destination,
     conditions: { ...UI.ruleForm.conditions, extensions: [...f.getAll('ext'), ...extensionList(f.get('extensions_extra'))],
       categories: f.getAll('cat'), keywords: csv(f.get('keywords')) } };
   $('[data-rule-sentence]', form.closest('.wizard-layout')).textContent = ruleSentence(draft);
+}
+
+function ruleSourceOption({ mode, symbol, title, scope, subfolders, updates, example, checked }) {
+  const id = `rule-source-${mode}`;
+  return `<label class="source-option">
+    <span class="source-option-header">
+      <span class="source-option-icon">${icon(symbol)}</span>
+      <strong id="${id}-title">${esc(title)}</strong>
+      <input type="radio" name="sourceMode" value="${mode}" aria-labelledby="${id}-title" aria-describedby="${id}-scope" ${checked ? 'checked' : ''}>
+    </span>
+    <span class="source-option-details">
+      <span id="${id}-scope" class="source-option-scope">${esc(scope)}</span>
+      <span><b>Subpastas.</b> ${esc(subfolders)}</span>
+      <span><b>Alterações futuras.</b> ${esc(updates)}</span>
+    </span>
+    <span class="source-option-example"><b>Exemplo</b><span>${esc(example)}</span></span>
+  </label>`;
+}
+
+function ruleSourceStep(rule, canScope, scoped) {
+  const monitored = S.config.watch_dirs;
+  const specificOption = {
+    mode: 'scoped', symbol: 'pasta', title: 'Pastas específicas',
+    scope: 'Adicione uma ou mais pastas para esta regra procurar arquivos somente nelas.',
+    subfolders: 'Você decide aqui se a regra também procura dentro das subpastas.',
+    updates: 'A lista é salva nesta regra. Para trocar uma pasta, abra a regra e edite sua origem.',
+    example: 'Procurar PDFs só em Projetos, mesmo com Downloads monitorada.',
+    checked: scoped,
+  };
+  const monitoredOption = {
+    mode: 'global', symbol: 'config', title: 'Pastas monitoradas',
+    scope: 'Procura arquivos em todas as pastas da lista geral, em Configurações.',
+    subfolders: 'Segue a opção “Incluir subpastas das origens gerais” das Configurações.',
+    updates: 'Ao adicionar ou remover uma pasta em Configurações, esta regra usa a lista atualizada na próxima execução.',
+    example: 'Se Downloads e Documentos estiverem na lista geral, a regra procura PDFs nas duas pastas.',
+    checked: !scoped,
+  };
+  return `<h3 tabindex="-1">Origem da regra</h3>
+    <p class="muted">Escolha onde o OrganizaLocal vai procurar arquivos. Você define quais mover e para onde na próxima etapa.</p>
+    ${canScope ? `<fieldset class="source-options"><legend class="sr-only">Modo de seleção das pastas de origem</legend>
+      ${ruleSourceOption(specificOption)}
+      ${ruleSourceOption(monitoredOption)}
+    </fieldset>` : ''}
+    <div class="source-panel" data-scoped ${scoped ? '' : 'hidden'}>
+      <h4>Pastas desta regra</h4>
+      <p class="small muted">${supported('native_picker')
+        ? 'Adicione pelo menos uma pasta. Use Escolher pasta ou cole o caminho completo e clique em Adicionar pasta.'
+        : 'Adicione pelo menos uma pasta. Cole o caminho completo e clique em Adicionar pasta.'}</p>
+      ${pathList('sources', 'Caminho da pasta', rule.sources || [])}
+      ${monitored.length ? `<div class="row source-shortcuts"><span class="small muted">Adição rápida</span>${monitored.map(path => `<button type="button" data-act="rule-use-source" data-path="${esc(path)}" title="${esc(path)}">Adicionar ${esc(pathName(path))}</button>`).join('')}</div>` : ''}
+      <label class="check source-recursive"><input type="checkbox" name="source_recursive" ${rule.source_recursive ? 'checked' : ''}>
+        <span><strong>Incluir subpastas</strong><small>Marcado, procura também em pastas internas. Desmarcado, procura apenas nos arquivos diretamente dentro das origens.</small></span>
+      </label>
+    </div>
+    <div class="source-panel" data-monitored ${scoped ? 'hidden' : ''}>
+      <div class="spread">
+        <h4>Pastas monitoradas hoje</h4>
+        ${dashboardLink('config', 'Ver em Configurações', 'foldersSettings')}
+      </div>
+      ${monitored.length ? `<ul class="source-monitored-list">${monitored.map(path => `<li>${icon('pasta')}<span>${esc(path)}</span></li>`).join('')}</ul>` : '<p class="small muted">A lista está vazia. Adicione pastas em Configurações para a regra ter onde procurar.</p>'}
+      <p class="small muted"><strong>Subpastas nas Configurações.</strong> ${S.config.recursive
+        ? 'Ativadas. A busca entra também nas subpastas.'
+        : 'Desativadas. A busca percorre os arquivos diretamente nas pastas da lista.'}</p>
+    </div>`;
 }
 
 function ruleWizard() {
@@ -234,24 +357,17 @@ function ruleWizard() {
       <div class="wizard-heading"><h2>${rule.id ? 'Editar regra' : 'Criar regra de organização'}</h2><span class="small muted">Etapa ${step} de 3</span></div>
       ${wizardProgress(step, ['Origem', 'Tipos e destino', 'Revisão'])}
       <div class="notice err" data-form-error tabindex="-1" role="alert" hidden></div>
-      <section class="wizard-step" ${step !== 1 ? 'hidden' : ''}><h3 tabindex="-1">De onde vêm os arquivos?</h3>
-        <p class="muted">Escolha onde esta regra deve procurar arquivos.</p>
-        ${canScope ? `<fieldset class="choice-list"><legend>Origem da regra</legend>
-          <label class="check"><input type="radio" name="sourceMode" value="scoped" ${scoped ? 'checked' : ''}> Pastas escolhidas para esta regra</label>
-          <label class="check"><input type="radio" name="sourceMode" value="global" ${scoped ? '' : 'checked'}> Pastas monitoradas nas configurações</label></fieldset>` : ''}
-        <div data-scoped ${scoped ? '' : 'hidden'}>${pathList('sources', 'Pastas de origem desta regra', origins)}
-          ${S.config.watch_dirs.length ? `<div class="row"><span class="small muted">Pastas monitoradas</span>${S.config.watch_dirs.map(path => `<button type="button" data-act="rule-use-source" data-path="${esc(path)}">Usar ${esc(pathName(path))}</button>`).join('')}</div>` : ''}
-          <label class="check"><input type="checkbox" name="source_recursive" ${rule.source_recursive ? 'checked' : ''}> Incluir subpastas nas origens desta regra</label></div>
-        ${fieldHelp('Pastas específicas valem para esta regra. As regras gerais continuam usando as pastas monitoradas nas configurações. Incluir subpastas também procura arquivos dentro das pastas da origem.')}
-      </section>
+      <section class="wizard-step rule-source" ${step !== 1 ? 'hidden' : ''}>${ruleSourceStep(rule, canScope, scoped)}</section>
       <section class="wizard-step" ${step !== 2 ? 'hidden' : ''}><h3 tabindex="-1">Quais arquivos vão para onde?</h3>
         <label>Nome da regra<input name="name" value="${esc(rule.name || '')}" placeholder="Exemplo: PDFs de trabalho" maxlength="120"></label>
         <div class="wizard-types"><div class="spread"><h4>Tipos de arquivo</h4><button type="button" data-act="ext-scan" ${allowed('analyze') ? '' : 'disabled'}>Detectar tipos nas pastas</button></div>
           ${fieldHelp('Extensão é o final do nome do arquivo, como .jpg em foto.jpg. Marque um grupo inteiro ou selecione só os tipos que quer mover.')}
-          <div class="filter-bar"><label>Buscar tipo<input id="extFilter" type="search" placeholder="PDF, imagens, Excel…"></label>
-            <label>Mostrar<select id="extMode"><option value="all">Todos os tipos</option><option value="found">Encontrados</option><option value="selected">Selecionados</option><option value="other">Outros formatos</option></select></label></div>
-          <p role="status" data-inventory-status class="small muted">${UI.extInv ? `${UI.extInv.total_files} arquivo(s) analisado(s)` : ''}</p>
-          <div id="extPicker" class="type-catalog">${catalogHtml(UI.extInv, new Set(c.extensions || []))}</div>
+          <div class="type-filters"><label>Buscar extensão<input id="extFilter" type="search" placeholder="PDF, imagens, Excel…"></label>
+            <label>Categoria<select id="extCategory" aria-controls="extPicker"></select></label>
+            <label>Mostrar<select id="extMode"><option value="all">Todos os tipos</option><option value="found">Detectados nas pastas</option><option value="selected">Selecionados</option><option value="other">Outros formatos</option></select></label></div>
+          <div class="spread type-status"><p data-selected-types role="status" class="small"></p>
+            <p role="status" data-inventory-status class="small muted">${esc(catalogInventoryStatus(UI.extInv))}</p></div>
+          <div id="extPicker" class="type-catalog">${catalogHtml(UI.extInv, new Set(c.extensions || []), rule.id)}</div>
           <p data-empty-types class="empty" hidden>Nenhum tipo corresponde a este filtro.</p></div>
         ${pathField({ label: 'Pasta de destino', name: 'destination', value: rule.destination })}
         <label>Nome de uma nova subpasta <small>Opcional. A pasta será criada na execução, se necessário.</small><input name="subfolder" value="${esc(rule.subfolderDraft || '')}" placeholder="Exemplo: PDFs"></label>

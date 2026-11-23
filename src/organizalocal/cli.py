@@ -19,9 +19,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
+import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -106,16 +109,21 @@ def cmd_serve(args) -> int:
     print(f" Próxima organização automática: {nxt or 'desligada'}")
     print(" Ctrl+C para encerrar.")
     print("=" * 60, flush=True)
-    if not args.no_browser:
-        open_browser(info["token"], app.store.config.get("site_url", ""), local=args.local)
     try:
+        if not args.no_browser:
+            try:
+                open_browser(info["token"], app.store.config.get("site_url", ""), local=args.local)
+            except OSError as exc:
+                launch_error(str(exc))
         server.serve_forever(poll_interval=0.5)
     finally:
-        app.scheduler.stop()
-        server.server_close()
-        app.security.end_session()
-        app.store.pid_path.unlink(missing_ok=True)
-        app.store.event("service_stop", "ok", detail=f"PID {os.getpid()}")
+        try:
+            app.scheduler.stop()
+            app.security.end_session()
+            app.store.pid_path.unlink(missing_ok=True)
+            app.store.event("service_stop", "ok", detail=f"PID {os.getpid()}")
+        finally:
+            server.server_close()
         print("Serviço encerrado.")
     return 0
 
@@ -157,50 +165,77 @@ def open_browser(token: str, site_url: str, local: bool = False) -> str:
     url = local_url
     if site_url and not local and site_reachable(site_url):
         url = site_url.rstrip("/") + "/"
-    fragment = f"#token={token}&api=http://127.0.0.1:{port()}"
-    webbrowser.open(url + fragment)
+    fragment = f"#token={token}&api=http://127.0.0.1:{port()}" if token else ""
+    if not webbrowser.open(url + fragment):
+        raise OSError(f"Não foi possível abrir o navegador. Acesse {url}")
     return url
 
 
+def launch_error(message: str) -> int:
+    if os.name == "nt" and sys.stderr is None:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x10)
+    else:
+        print(message, file=sys.stderr)
+    return 1
+
+
 def cmd_open(args) -> int:
-    if not running():
-        print("Iniciando o serviço em segundo plano...")
-        spawn_background()
-        for _ in range(40):
-            time.sleep(0.25)
-            if running() and session().get("token"):
-                break
-        else:
-            print("O serviço não respondeu. Veja o log em <pasta de dados>/logs/servico.log")
-            return 1
     from .storage import Store
-    site = Store().config.get("site_url", "")
-    url = open_browser(session()["token"], site, local=args.local)
+    try:
+        ping = running()
+        if not ping:
+            print("Iniciando o serviço em segundo plano...")
+            spawn_background()
+            for _ in range(40):
+                time.sleep(0.25)
+                ping = running()
+                if ping:
+                    break
+        if not ping:
+            return launch_error("O serviço não respondeu. Veja o log em <pasta de dados>/logs/servico.log.")
+
+        info = session()
+        token = info.get("token", "") if info.get("pid") == ping.get("pid") and info.get("port") == port() else ""
+        site = Store().config.get("site_url", "") if token else ""
+        url = open_browser(token, site, local=args.local)
+    except OSError as exc:
+        return launch_error(str(exc))
     print(f"Abrindo {url}")
     return 0
 
 
 def cmd_stop(_args) -> int:
-    if not running():
+    ping = running()
+    if not ping:
         print("O serviço não está em execução.")
         return 0
+    forced = False
     try:
         action("shutdown")
         print("Pedido de encerramento enviado.")
     except Exception:
-        pid = session().get("pid")
-        if not pid:
+        info = session()
+        pid = info.get("pid")
+        if not pid or pid != ping.get("pid") or info.get("port") != port():
             print("Não foi possível descobrir o PID do serviço.")
             return 1
         if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], check=False)
+            result = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], check=False)
+            if result.returncode != 0:
+                return 1
+            forced = True
         else:
             os.kill(int(pid), signal.SIGTERM)                  # encerramento controlado por sinal
         print(f"Sinal de encerramento enviado ao PID {pid}.")
     for _ in range(20):
-        if not running():
-            print("Serviço encerrado.")
-            return 0
+        try:
+            with socket.create_connection(("127.0.0.1", port()), timeout=0.25):
+                pass
+        except (ConnectionRefusedError, TimeoutError):
+            if forced or session().get("pid") != ping.get("pid"):
+                print("Serviço encerrado.")
+                return 0
         time.sleep(0.25)
     return 1
 
@@ -223,13 +258,56 @@ def cmd_status(_args) -> int:
     return 0
 
 
-def cmd_code(_args) -> int:
+def cmd_code(args) -> int:
     info = session()
-    if not info:
+    code = info.get("code")
+    if code:
+        print(f"Código de pareamento: {code}")
+    else:
         print("Serviço parado — inicie com `organizalocal open`.")
-        return 3
-    print(f"Código de pareamento: {info['code']}")
-    return 0
+    if args.aguardar:
+        try:
+            input("\nPressione Enter para fechar esta janela...")
+        except (EOFError, KeyboardInterrupt):
+            pass
+    return 0 if code else 3
+
+
+def open_pairing_terminal(data_root: Path) -> None:
+    """Abre um console que lê o código diretamente da sessão local."""
+    package_parent = Path(__file__).resolve().parent.parent
+    python = Path(sys.executable)
+    command = ["-m", "organizalocal", "codigo", "--aguardar"]
+    try:
+        if os.name == "nt":
+            if python.name.lower() == "pythonw.exe":
+                python = python.with_name("python.exe")
+            env = dict(os.environ, ORGANIZALOCAL_DATA=str(data_root))
+            process = subprocess.Popen([str(python), *command], cwd=package_parent, env=env,
+                                       creationflags=subprocess.CREATE_NEW_CONSOLE)
+        else:
+            terminals = (
+                ("gnome-terminal", "--"),
+                ("xfce4-terminal", "-x"),
+                ("konsole", "-e"),
+                ("x-terminal-emulator", "-e"),
+                ("xterm", "-e"),
+            )
+            if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+                raise RuntimeError("O programa precisa estar rodando em uma sessão gráfica para abrir o terminal.")
+            for name, option in terminals:
+                terminal = shutil.which(name)
+                if terminal:
+                    process = subprocess.Popen([
+                        terminal, option, "/usr/bin/env", f"PYTHONPATH={package_parent}",
+                        f"ORGANIZALOCAL_DATA={data_root}", str(python), *command,
+                    ], start_new_session=True)
+                    break
+            else:
+                raise RuntimeError("Nenhum terminal gráfico compatível foi encontrado.")
+    except OSError as exc:
+        raise RuntimeError("Não foi possível abrir a janela do terminal.") from exc
+    threading.Thread(target=process.wait, daemon=True).start()
 
 
 # ----------------------------------------------------------------------
@@ -336,7 +414,8 @@ def main(argv=None) -> int:
     p.add_argument("--local", action="store_true")
     sub.add_parser("stop", help="encerra o serviço")
     sub.add_parser("status", help="situação do serviço")
-    sub.add_parser("codigo", help="mostra o código de pareamento")
+    p = sub.add_parser("codigo", help="mostra o código de pareamento")
+    p.add_argument("--aguardar", action="store_true", help="mantém a janela aberta até pressionar Enter")
     p = sub.add_parser("organize", help="organiza agora (ou simula)")
     p.add_argument("--simular", action="store_true")
     p.add_argument("--pasta", action="append")

@@ -1,0 +1,52 @@
+name: Validar OrganizaLocal
+
+"on":
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'atualizacao-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Testes em ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python -m unittest discover -s tests -q
+
+  pacote-linux:
+    name: Gerar pacote Debian
+    runs-on: ubuntu-latest
+    needs: testes
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash empacotamento/linux/build-deb.sh
+      - run: dpkg-deb --info dist/*.deb
+      - name: Testar o pacote instalado
+        run: |
+          sudo dpkg -i dist/*.deb
+          export ORGANIZALOCAL_DATA="$RUNNER_TEMP/organizalocal"
+          export ORGANIZALOCAL_PORT=8799
+          organizalocal serve --no-browser > "$RUNNER_TEMP/organizalocal.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --retry 10 --retry-delay 1 --retry-connrefused \
+            "http://127.0.0.1:$ORGANIZALOCAL_PORT/api/ping"
+          organizalocal status
+          organizalocal stop
+          wait "$pid"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-linux
+          path: dist/*.deb
+          if-no-files-found: error

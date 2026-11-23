@@ -17,7 +17,7 @@ Target amd64-unicode                             ; instalador 64 bits (o Python 
 SetCompressor /SOLID lzma
 
 !ifndef VERSION
-  !define VERSION "1.1.0"
+  !define VERSION "1.2.0"
 !endif
 !define APPNAME   "OrganizaLocal"
 !define PUBLISHER "Equipe OrganizaLocal - FATEC Itapetininga"
@@ -72,16 +72,32 @@ ${UnStrRep}
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "PortugueseBR"
 
+!macro PararServico Diretorio
+  ${If} ${FileExists} "${Diretorio}\python\pythonw.exe"
+  ${AndIf} ${FileExists} "${Diretorio}\app\organizalocal\__main__.py"
+    SetOutPath "${Diretorio}\app"
+    DetailPrint "Encerrando o serviço do OrganizaLocal..."
+    ClearErrors
+    ExecWait '"${Diretorio}\python\pythonw.exe" -m organizalocal stop' $0
+    ${If} ${Errors}
+    ${OrIf} $0 != 0
+      MessageBox MB_ICONSTOP|MB_OK "O serviço do OrganizaLocal não encerrou. Reinicie o Windows e tente novamente." /SD IDOK
+      Abort
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 ; ----------------------------------------------------------------- seções
 Section "OrganizaLocal (obrigatório)" SecApp
   SectionIn RO
 
-  ; Se já houver uma versão aberta, pede para ela encerrar (evita arquivos em uso).
-  ${If} ${FileExists} "$INSTDIR\organizalocal.cmd"
-    DetailPrint "Encerrando a versão em execução..."
-    nsExec::Exec '"$INSTDIR\organizalocal.cmd" stop'
-    Pop $0
+  ; A instalação anterior pode estar em outro diretório.
+  ReadRegStr $R0 HKCU "Software\OrganizaLocal" "InstallDir"
+  ${If} $R0 != ""
+  ${AndIf} $R0 != $INSTDIR
+    !insertmacro PararServico $R0
   ${EndIf}
+  !insertmacro PararServico $INSTDIR
 
   ; Python embutido (oficial, python.org)
   SetOutPath "$INSTDIR\python"
@@ -162,10 +178,7 @@ FunctionEnd
 
 ; ----------------------------------------------------------------- desinstalação
 Section "Uninstall"
-  DetailPrint "Encerrando o serviço..."
-  nsExec::Exec '"$INSTDIR\organizalocal.cmd" stop'
-  Pop $0
-  Sleep 1000
+  !insertmacro PararServico $INSTDIR
 
   Delete "$DESKTOP\OrganizaLocal.lnk"
   Delete "$SMPROGRAMS\OrganizaLocal.lnk"

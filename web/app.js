@@ -96,10 +96,18 @@ function setConnection(ok, text) {
 async function refresh() {
   S = await call('state');
   UI.dashboardError = '';
-  document.body.className = S.config.theme || 'claro';
+  applyAppearance(S.config);
   setConnection(true, `Serviço local · ${S.active_profile}`);
   document.getElementById('navfoot').textContent = `v${S.app.version} · ${IS_LOCAL ? 'Interface local' : 'Site publicado'}`;
   render();
+}
+
+function applyAppearance(config) {
+  const premium = config.premium_theme === true;
+  document.body.className = config.theme || 'claro';
+  document.body.classList.toggle('premium-theme', premium);
+  document.body.classList.toggle('premium-animated', premium && config.premium_motion !== false);
+  document.body.dataset.controlElevation = config.control_elevation || 'medium';
 }
 
 /* ---------------------------------------------------------------------------
@@ -622,6 +630,7 @@ function render() {
   main.dataset.view = TAB;
   main.innerHTML = VIEWS[TAB]();
   if (TAB === 'regras' && !UI.ruleForm) filterRules();
+  if (TAB === 'regras' && UI.ruleForm) syncCatalogCategories($('#ruleForm'));
   if (moreAlertsOpen && main.querySelector('.more-alerts')) main.querySelector('.more-alerts').open = true;
   main.querySelector('h1')?.setAttribute('tabindex', '-1');
   if (activeHeading) (headingId ? document.getElementById(headingId) : main.querySelector('h1'))?.focus({ preventScroll: true });
@@ -662,19 +671,22 @@ function renderOffline() {
     <p class="small muted">Procurando o programa em <code>${esc(API)}</code></p><button class="primary" data-act="retry">Tentar novamente</button></section>
     <section class="card"><h2>Ainda não instalou?</h2>
     <p>Baixe o instalador. No Windows o Python já vem incluído; não é preciso administrador.</p>
-    <div class="row"><a class="btn primary" href="downloads/OrganizaLocal-Setup-1.1.0.exe" download>⬇ Windows (Setup.exe, 9 MB)</a>
-    <a class="btn" href="downloads/organizalocal_1.1.0_all.deb" download>⬇ Linux Ubuntu/Debian (.deb)</a>
+    <div class="row"><a class="btn primary" href="downloads/OrganizaLocal-Setup-1.2.0.exe" download>⬇ Windows (Setup.exe, 9 MB)</a>
+    <a class="btn" href="downloads/organizalocal_1.2.0_all.deb" download>⬇ Linux Ubuntu/Debian (.deb)</a>
     <a class="btn ghost" href="https://github.com/Kaykyduken/organiza-local" target="_blank" rel="noopener">Código no GitHub</a></div>
     <p class="small muted">Windows: abra o Setup.exe → Próximo → Instalar → Concluir. Se o SmartScreen avisar, clique em “Mais informações” → “Executar assim mesmo” (o instalador não é assinado digitalmente).<br>
-    Linux: dois cliques no .deb ou <code>sudo apt install ./organizalocal_1.1.0_all.deb</code>.</p></section>`;
+    Linux: dois cliques no .deb ou <code>sudo apt install ./organizalocal_1.2.0_all.deb</code>.</p></section>`;
 }
 function renderPairing() {
   setConnection(false, 'Aguardando pareamento');
   $('#main').removeAttribute('data-view');
   $('#main').innerHTML = `<form class="card" id="pairForm" style="max-width:520px"><h1>Conectar ao programa</h1>
-    <p>Abra o site pelo <b>atalho do OrganizaLocal</b> para entrar automaticamente, ou digite o código de 6 dígitos exibido por <code>organizalocal codigo</code> (ou no terminal do serviço).</p>
+    <p>Clique em <b>Enviar código</b> para abrir o terminal com os 6 dígitos. Digite o código abaixo e clique em <b>Conectar</b>.</p>
     <label>Código de pareamento<input name="code" inputmode="numeric" maxlength="6" required autofocus></label>
-    <div class="row" style="margin-top:12px"><button class="primary">Conectar</button></div></form>`;
+    <div class="row" style="margin-top:12px">
+      <button type="button" data-act="pair-show-code">Enviar código</button>
+      <button type="submit" class="primary">Conectar</button>
+    </div></form>`;
 }
 
 /* ---------------------------------------------------------------------------
@@ -729,6 +741,25 @@ async function act(name, el = {}) {
   const d = el.dataset || {};
   switch (name) {
     case 'retry': return start();
+    case 'pair-show-code': {
+      el.disabled = true;
+      try {
+        const r = await fetch(`${API}/api/pair/show-code`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+        });
+        if (r.status === 401 || r.status === 404) {
+          return toast('Atualize o OrganizaLocal ou veja o código com o comando organizalocal codigo.', true);
+        }
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) return toast(data.error || 'Não foi possível abrir o terminal.', true);
+        toast('Confira o código na janela do terminal.');
+      } catch {
+        toast('Não foi possível falar com o programa local. Ele está aberto?', true);
+      } finally {
+        el.disabled = false;
+      }
+      return;
+    }
     /* Organização */
     case 'simulate-go':
     case 'simulate': return runOrganization('simulate');
@@ -772,6 +803,7 @@ async function act(name, el = {}) {
       const boxes = $$('.extchip:not([hidden]) input[name=ext]', el.closest('.type-group'));
       const all = boxes.every(b => b.checked);
       boxes.forEach(b => { b.checked = !all; b.closest('.extchip').classList.toggle('on', !all); });
+      filterCatalog($('#ruleForm'));
       setDraftDirty($('#ruleForm'));
       filterCatalog($('#ruleForm'));
       return;
@@ -1031,7 +1063,7 @@ document.addEventListener('change', async e => {
   }
   const form = e.target.closest('form');
   if (e.target.id === 'simFilter') { UI.simFilter = e.target.value; UI.simPage = 0; return renderSimulationRows(); }
-  if (e.target.id === 'extMode') return filterCatalog($('#ruleForm'));
+  if (['extMode', 'extCategory'].includes(e.target.id)) return filterCatalog($('#ruleForm'));
   if (e.target.id === 'backupFrequency') $('[data-backup-interval]', form).hidden = e.target.value !== 'custom';
   if (e.target.id === 'scheduleFrequency') $$('[data-frequency]', form).forEach(label => {
     label.hidden = !label.dataset.frequency.split(' ').includes(e.target.value);
@@ -1047,7 +1079,7 @@ document.addEventListener('change', async e => {
   if (e.target.id === 'ruleOrder') { UI.ruleOrder = e.target.value; render(); $('#ruleOrder')?.focus(); }
   if (e.target.name === 'ext') {
     e.target.closest('.extchip')?.classList.toggle('on', e.target.checked);
-    if ($('#extMode').value === 'selected') filterCatalog($('#ruleForm'));
+    filterCatalog(form);
   }
   setDraftDirty(form);
   if (form?.id === 'configForm') dirtySettings();
@@ -1094,7 +1126,7 @@ document.addEventListener('input', e => {
   if (e.target.id === 'extFilter') return filterCatalog($('#ruleForm'));
   if (e.target.id === 'ruleSearch') { UI.ruleSearch = e.target.value; return filterRules(); }
   if (e.target.id === 'simSearch') { UI.simSearch = e.target.value; UI.simPage = 0; return renderSimulationRows(); }
-  if (e.target.id === 'extMode') return;
+  if (['extMode', 'extCategory'].includes(e.target.id)) return;
   if (e.target.id === 'configRename') $('#configRenameExample').textContent = renameExample(e.target.value);
   const form = e.target.closest('form');
   setDraftDirty(form);
