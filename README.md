@@ -14,7 +14,7 @@ Orientador: Prof. Me. Deivison S. Takatu.
 | Linguagem | Python 3.10+ (somente biblioteca padrão, funciona offline) |
 
 
-![Painel do OrganizaLocal 1.1.0](docs/prints/v11_painel.jpg)
+![Painel do OrganizaLocal 1.2.0](docs/prints/v11_painel.jpg)
 
 ---
 
@@ -252,7 +252,7 @@ Rastreabilidade completa em [`COBERTURA_REQUISITOS.md`](COBERTURA_REQUISITOS.md)
 
 O documento completo do projeto (estrutura de mini TCC, com prints de cada etapa) está em [`docs/OrganizaLocal_Documento_Projeto.docx`](docs/OrganizaLocal_Documento_Projeto.docx). As capturas de tela ficam em [`docs/prints/`](docs/prints).
 
-**Interface da versão 1.1.0:**
+**Interface da versão 1.2.0** (capturas feitas na 1.1.0; o visual padrão é o mesmo, porque o tema premium da 1.2.0 vem desligado):
 
 | Etapa | Print |
 |---|---|
