@@ -100,6 +100,34 @@ class TestFluxos(TempEnv):
             self.assertEqual(self.app.dispatch("select_path", {"kind": "folder"}), chosen)
         picker.assert_called_once_with("folder")
 
+    def test_tema_premium_persiste_e_mantem_o_tema_base(self):
+        self.assertFalse(self.app.state()["config"]["premium_theme"])
+        self.assertTrue(self.app.state()["config"]["premium_motion"])
+        self.app.dispatch("config_update", {"changes": {"theme": "neon", "premium_theme": True, "premium_motion": False}})
+        snapshot = self.app.export_config()["data"]
+        self.assertTrue(self.app.store.read(self.app.store.config_path, {})["premium_theme"])
+        self.assertFalse(self.app.store.read(self.app.store.config_path, {})["premium_motion"])
+        self.app.dispatch("config_update", {"changes": {"premium_theme": False, "premium_motion": True}})
+        self.assertEqual(self.app.state()["config"]["theme"], "neon")
+        self.assertFalse(self.app.state()["config"]["premium_theme"])
+        self.app.import_config(snapshot)
+        self.assertTrue(self.app.state()["config"]["premium_theme"])
+        self.assertFalse(self.app.state()["config"]["premium_motion"])
+        with self.assertRaisesRegex(ValueError, "Tema premium"):
+            self.app.update_config({"premium_motion": "false"})
+
+    def test_elevacao_dos_controles_permite_desligar_e_restaurar(self):
+        self.assertEqual(self.app.state()["config"]["control_elevation"], "medium")
+        for level in ("off", "normal", "medium", "max"):
+            self.app.dispatch("config_update", {"changes": {"control_elevation": level}})
+            self.assertEqual(self.app.store.read(self.app.store.config_path, {})["control_elevation"], level)
+        snapshot = self.app.export_config()["data"]
+        self.app.update_config({"control_elevation": "off"})
+        self.app.import_config(snapshot)
+        self.assertEqual(self.app.state()["config"]["control_elevation"], "max")
+        with self.assertRaisesRegex(ValueError, "elevação"):
+            self.app.update_config({"control_elevation": "invalid"})
+
     def test_perfil_invalido_nao_remove_acesso_administrativo(self):
         before = self.app.security.active_profile().copy()
         with self.assertRaisesRegex(ValueError, "configurações"):

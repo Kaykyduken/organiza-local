@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import threading
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -28,6 +29,7 @@ from urllib.parse import urlparse
 from . import APP_NAME, DEFAULT_PORT, VERSION
 from . import archives, native_picker, rules as R, sysinfo
 from .backups import Backups
+from .cli import open_pairing_terminal
 from .organizer import ACTION_LABELS, Organizer, friendly_error
 from .reports import Reports
 from .scheduler import Scheduler
@@ -61,9 +63,19 @@ class App:
         self.backups = Backups(self.store, self.organizer)
         self.reports = Reports(self.store)
         self.security = Security(self.store)
+        self.last_pairing_terminal: float | None = None
         self.scheduler = Scheduler(self.store, self.organizer, self.backups, self.reports)
         self._first_run_setup()
         self.start_scheduler = start_scheduler
+
+    def show_pairing_code(self) -> bool:
+        with self.store.lock:
+            if self.last_pairing_terminal is not None and time.monotonic() - self.last_pairing_terminal < 3:
+                return False
+            self.security.refresh_pairing_code()
+            open_pairing_terminal(self.store.root)
+            self.last_pairing_terminal = time.monotonic()
+            return True
 
     def _first_run_setup(self) -> None:
         cfg = self.store.config
@@ -104,7 +116,8 @@ class App:
         return {
             "app": {"name": APP_NAME, "version": VERSION, "data_dir": str(self.store.root), "port": self.port,
                     "os": os.name, "platform": sysinfo.platform.system(),
-                    "features": {"native_picker": os.name == "nt", "rule_scope": True}},
+                    "features": {"native_picker": os.name == "nt", "rule_scope": True,
+                                 "premium_theme": True, "premium_motion": True, "control_elevation": True}},
             "config": self.safe_config(),
             "rules": self.organizer.ordered_rules(),
             "problems": self.organizer.validate_all(),
@@ -131,7 +144,8 @@ class App:
     # Configurações gerais
     # ------------------------------------------------------------------
     def update_config(self, changes: dict) -> dict:
-        allowed = {"theme", "site_url", "extra_origins", "watch_dirs", "recursive", "organize_schedule",
+        allowed = {"theme", "premium_theme", "premium_motion", "control_elevation",
+                   "site_url", "extra_origins", "watch_dirs", "recursive", "organize_schedule",
                    "organize_on_start", "conflict_policy", "default_destination", "min_file_age_seconds",
                    "quarantine_risky", "rename_pattern", "protected_paths", "exclusions", "default_max_versions"}
         if not isinstance(changes, dict) or not set(changes) <= allowed:
@@ -148,6 +162,10 @@ class App:
                             raise ValueError("Uma pasta monitorada não pode conter a pasta de dados do aplicativo.")
             elif key == "theme" and value not in ("claro", "escuro", "neon"):
                 raise ValueError("Tema inválido.")
+            elif key in ("premium_theme", "premium_motion") and not isinstance(value, bool):
+                raise ValueError("As opções do Tema premium precisam estar ativadas ou desativadas.")
+            elif key == "control_elevation" and value not in ("off", "normal", "medium", "max"):
+                raise ValueError("Nível de elevação inválido.")
             elif key == "conflict_policy" and value not in ("rename", "review", "skip"):
                 raise ValueError("Política de conflito inválida.")
             elif key == "organize_schedule":
@@ -223,10 +241,15 @@ class App:
         if not isinstance(data, dict) or data.get("format") not in ("organiza-local-1", "organiza-local-2"):
             raise ValueError("Arquivo de exportação incompatível.")
         cfg = data.get("settings") or {}
+        if any(key in cfg and not isinstance(cfg[key], bool) for key in ("premium_theme", "premium_motion")):
+            raise ValueError("As opções do Tema premium precisam estar ativadas ou desativadas.")
+        if "control_elevation" in cfg and cfg["control_elevation"] not in ("off", "normal", "medium", "max"):
+            raise ValueError("Nível de elevação inválido.")
         rules = [R.normalize_rule(r) for r in cfg.get("rules", [])]
         for rule in rules:
             rule.setdefault("id", secrets.token_hex(6))
-        keys = ("theme", "site_url", "watch_dirs", "recursive", "organize_schedule", "conflict_policy",
+        keys = ("theme", "premium_theme", "premium_motion", "control_elevation", "site_url", "watch_dirs",
+                "recursive", "organize_schedule", "conflict_policy",
                 "default_destination", "min_file_age_seconds", "quarantine_risky", "rename_pattern",
                 "protected_paths", "exclusions", "categories", "projects", "limits", "due_dates", "backup_jobs")
         with self.store.lock:
@@ -395,28 +418,29 @@ class Handler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").split(":")[0]
         return host in ("127.0.0.1", "localhost")
 
-    def _cors(self) -> None:
+    def _cors(self, admitted_origin: str | None = None) -> None:
         origin = self.headers.get("Origin")
-        if origin and origin in self.app.allowed_origins():
+        if origin and (origin == admitted_origin or origin in self.app.allowed_origins()):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def _send(self, status: int, body: bytes, content_type: str = "application/json; charset=utf-8",
-              extra: dict | None = None) -> None:
+              extra: dict | None = None, *, admitted_origin: str | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self._cors()
+        self._cors(admitted_origin)
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
-    def _json(self, status: int, data) -> None:
-        self._send(status, json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"))
+    def _json(self, status: int, data, *, admitted_origin: str | None = None) -> None:
+        self._send(status, json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"),
+                   admitted_origin=admitted_origin)
 
     def _error(self, status: int, message: str) -> None:
         self._json(status, {"error": message})
@@ -471,14 +495,22 @@ class Handler(BaseHTTPRequestHandler):
             payload = self._body()
             if path == "/api/pair":
                 return self._json(200, {"token": self.app.security.pair(str(payload.get("code", "")))})
+            if path == "/api/pair/show-code":
+                if not self.headers.get("Origin") or self.headers.get_content_type() != "application/json":
+                    return self._error(403, "Abra o painel do OrganizaLocal para solicitar o código.")
+                if not self.app.show_pairing_code():
+                    return self._error(429, "Aguarde alguns segundos antes de abrir outro terminal.")
+                return self._json(200, {"ok": True})
             if not self._authorized():
                 return self._error(401, "Não autorizado. Abra o site pelo atalho do OrganizaLocal ou faça o pareamento.")
             match = re.fullmatch(r"/api/action/([a-z_]+)", path)
             if not match:
                 return self._error(404, "Rota não encontrada.")
             command = match.group(1)
+            # A configuração pode revogar a origem desta própria chamada.
+            admitted_origin = self.headers.get("Origin") if command == "config_update" else None
             result = self.app.dispatch(command, payload)
-            self._json(200, {"ok": True, "result": result})
+            self._json(200, {"ok": True, "result": result}, admitted_origin=admitted_origin)
             if command == "shutdown":
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
         except LookupError as exc:

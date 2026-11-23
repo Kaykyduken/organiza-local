@@ -50,14 +50,15 @@ class Security:
     # ------------------------------------------------------------------
     def start_session(self, port: int) -> dict:
         """Gera token + código e grava a sessão com permissão restrita."""
-        self.token = secrets.token_urlsafe(32)
-        self.code = f"{secrets.randbelow(900000) + 100000}"
-        self.code_created = time.monotonic()
-        self.paired_hashes = {_hash_token(self.token)}
-        session = {"pid": os.getpid(), "port": port, "token": self.token, "code": self.code,
-                   "started": now()}
-        self.store.write(self.store.session_path, session, private=True)
-        return session
+        with self.store.lock:
+            self.token = secrets.token_urlsafe(32)
+            self.code = self._new_code()
+            self.code_created = time.monotonic()
+            self.paired_hashes = {_hash_token(self.token)}
+            session = {"pid": os.getpid(), "port": port, "token": self.token, "code": self.code,
+                       "started": now()}
+            self.store.write(self.store.session_path, session, private=True)
+            return session
 
     def end_session(self) -> None:
         self.store.session_path.unlink(missing_ok=True)
@@ -67,26 +68,39 @@ class Security:
             return False
         return _hash_token(header[7:].strip()) in self.paired_hashes
 
+    @staticmethod
+    def _new_code() -> str:
+        return f"{secrets.randbelow(900000) + 100000}"
+
+    def refresh_pairing_code(self) -> bool:
+        """Atualiza um código expirado e informa se houve troca."""
+        with self.store.lock:
+            moment = time.monotonic()
+            if moment - self.code_created <= 1800:
+                return False
+            session = self.store.read(self.store.session_path, {})
+            session["code"] = self._new_code()
+            self.store.write(self.store.session_path, session, private=True)
+            self.code = session["code"]
+            self.code_created = moment
+            return True
+
     def pair(self, code: str) -> str:
         """Troca o código de 6 dígitos por um token (limite de tentativas)."""
-        moment = time.monotonic()
-        self.failures = [t for t in self.failures if moment - t < 300]
-        if len(self.failures) >= 5:
-            raise PermissionError("Muitas tentativas. Aguarde 5 minutos.")
-        if moment - self.code_created > 1800:
-            self.code = f"{secrets.randbelow(900000) + 100000}"   # código expira em 30 min
-            self.code_created = moment
-            session = self.store.read(self.store.session_path, {})
-            session["code"] = self.code
-            self.store.write(self.store.session_path, session, private=True)
-            raise PermissionError("Código expirado. Rode `organizalocal codigo` para ver o novo.")
-        if not secrets.compare_digest(str(code).strip(), self.code):
-            self.failures.append(moment)
-            raise PermissionError("Código incorreto.")
-        token = secrets.token_urlsafe(32)
-        self.paired_hashes.add(_hash_token(token))
-        self.store.event("pair", "ok")
-        return token
+        with self.store.lock:
+            moment = time.monotonic()
+            self.failures = [t for t in self.failures if moment - t < 300]
+            if len(self.failures) >= 5:
+                raise PermissionError("Muitas tentativas. Aguarde 5 minutos.")
+            if self.refresh_pairing_code():
+                raise PermissionError("Código expirado. Clique em Enviar código para ver o novo.")
+            if not secrets.compare_digest(str(code).strip(), self.code):
+                self.failures.append(moment)
+                raise PermissionError("Código incorreto.")
+            token = secrets.token_urlsafe(32)
+            self.paired_hashes.add(_hash_token(token))
+            self.store.event("pair", "ok")
+            return token
 
     def revoke_all(self, port: int) -> dict:
         """Invalida todos os tokens (inclusive do site aberto) e gera uma nova sessão."""

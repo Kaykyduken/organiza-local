@@ -87,6 +87,9 @@ def initial_config() -> dict:
     return {
         "version": 2,
         "theme": "claro",                          # claro | escuro | neon
+        "premium_theme": False,
+        "premium_motion": True,
+        "control_elevation": "medium",
         "site_url": "https://organiza-local.vercel.app",  # interface publicada na Vercel
         "extra_origins": [],                       # outras origens web autorizadas
         # --- Organização automática ---------------------------------------

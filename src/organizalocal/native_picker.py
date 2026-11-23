@@ -11,9 +11,18 @@ _DIALOG = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Application]::EnableVisualStyles()
 $owner = [System.Windows.Forms.Form]::new()
+$owner.Text = 'OrganizaLocal'
+$owner.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+$owner.ShowInTaskbar = $true
+$owner.Opacity = 0
 $owner.TopMost = $true
 try {
+    # O processo não tem janela de console. A janela dona precisa aparecer na
+    # barra de tarefas para que o diálogo possa receber foco e ser localizado.
+    $owner.Show()
+    $owner.Activate()
     if ($kind -eq 'folder') {
         $dialog = [System.Windows.Forms.FolderBrowserDialog]::new()
         $dialog.Description = 'OrganizaLocal - Escolha uma pasta'
@@ -27,6 +36,7 @@ try {
     }
 } finally {
     if ($dialog) { $dialog.Dispose() }
+    $owner.Close()
     $owner.Dispose()
 }
 """
@@ -38,7 +48,7 @@ def select_path(kind: str) -> dict:
     if os.name != "nt":
         raise RuntimeError("O seletor nativo está disponível no Windows. Informe o caminho completo.")
     if not _OPEN.acquire(blocking=False):
-        raise RuntimeError("Já existe uma janela de seleção aberta.")
+        raise RuntimeError("Há uma seleção em andamento. Abra a janela OrganizaLocal na barra de tarefas.")
     try:
         command = base64.b64encode((f"$kind = '{kind}'\n" + _DIALOG).encode("utf-16-le")).decode("ascii")
         shell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
